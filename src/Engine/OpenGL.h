@@ -89,7 +89,6 @@ public:
   void setVSync(bool sync);
   /// constructor -- like we said, we're too cool to actually construct things
   OpenGL();
-  ~OpenGL();
 };
 
 }

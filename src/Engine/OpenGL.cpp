@@ -13,7 +13,6 @@
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <fstream>
-#include <cstdlib>
 
 #include "OpenGL.h"
 #include "Logger.h"
@@ -316,27 +315,32 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
 	}
 
   void OpenGL::term() {
-	if(gltexture) {
-	  glDeleteTextures(1, &gltexture);
-	  gltexture = 0;
-	}
+    if(gltexture) {
+      glDeleteTextures(1, &gltexture);
+      gltexture = 0;
+    }
 
-	if(buffer) {
-	  buffer = 0;
-	  iwidth = 0;
-	  iheight = 0;
-	}
-
-	delete buffer_surface;
+    if(buffer) {
+      delete[] buffer;
+      buffer = 0;
+      iwidth = 0;
+      iheight = 0;
+    }
   }
 
-  OpenGL::OpenGL() : gltexture(0), glprogram(0), fragmentshader(0), linear(false), vertexshader(0),
-                     buffer(NULL), buffer_surface(NULL), iwidth(0), iheight(0),
-                     iformat(GL_UNSIGNED_INT_8_8_8_8_REV), // this didn't seem to be set anywhere before...
-                     ibpp(32)                              // ...nor this
-  { }
+  OpenGL::OpenGL() {
+    gltexture = 0;
+    glprogram = 0;
+    fragmentshader = 0;
+    linear = 0;
+    vertexshader = 0;
 
-  OpenGL::~OpenGL() {
-	term();
+    buffer = 0;
+    iwidth = 0;
+    iheight = 0;
+	ibpp = 32; // this didn't seem to be set anywhere before...
+	iformat = GL_UNSIGNED_INT_8_8_8_8_REV; // nor this
+	buffer_surface = 0;
   }
+
 }
