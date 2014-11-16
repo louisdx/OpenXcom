@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -25,12 +25,11 @@ namespace OpenXcom
  * Creates a blank ruleset for a certain
  * type of armor.
  * @param type String defining the type.
- * @param spriteSheet Spritesheet used to render the unit.
  */
-Armor::Armor(const std::string &type, std::string spriteSheet, int drawingRoutine, MovementType movementType, int size) : _type(type), _spriteSheet(spriteSheet), _spriteInv(""), _corpseItem(""), _storeItem(""), _frontArmor(0), _sideArmor(0), _rearArmor(0), _underArmor(0), _drawingRoutine(drawingRoutine), _movementType(movementType), _size(size)
+Armor::Armor(const std::string &type) : _type(type), _frontArmor(0), _sideArmor(0), _rearArmor(0), _underArmor(0), _drawingRoutine(0), _movementType(MT_WALK), _size(1), _weight(0), _deathFrames(3), _constantAnimation(false), _canHoldWeapon(false), _forcedTorso(TORSO_USE_GENDER)
 {
 	for (int i=0; i < DAMAGE_TYPES; i++)
-		_damageModifier[i] = 1.0;
+		_damageModifier[i] = 1.0f;
 }
 
 /**
@@ -47,121 +46,67 @@ Armor::~Armor()
  */
 void Armor::load(const YAML::Node &node)
 {
-	int a = 0;
-
-	for (YAML::Iterator i = node.begin(); i != node.end(); ++i)
+	_type = node["type"].as<std::string>(_type);
+	_spriteSheet = node["spriteSheet"].as<std::string>(_spriteSheet);
+	_spriteInv = node["spriteInv"].as<std::string>(_spriteInv);
+	if (node["corpseItem"])
 	{
-		std::string key;
-		i.first() >> key;
-		if (key == "type")
+		_corpseBattle.clear();
+		_corpseBattle.push_back(node["corpseItem"].as<std::string>());
+		_corpseGeo = _corpseBattle[0];
+	}
+	else if (node["corpseBattle"])
+	{
+		_corpseBattle = node["corpseBattle"].as< std::vector<std::string> >();
+		_corpseGeo = _corpseBattle[0];
+	}
+	_corpseGeo = node["corpseGeo"].as<std::string>(_corpseGeo);
+	_storeItem = node["storeItem"].as<std::string>(_storeItem);
+	_frontArmor = node["frontArmor"].as<int>(_frontArmor);
+	_sideArmor = node["sideArmor"].as<int>(_sideArmor);
+	_rearArmor = node["rearArmor"].as<int>(_rearArmor);
+	_underArmor = node["underArmor"].as<int>(_underArmor);
+	_drawingRoutine = node["drawingRoutine"].as<int>(_drawingRoutine);
+	_movementType = (MovementType)node["movementType"].as<int>(_movementType);
+	_size = node["size"].as<int>(_size);
+	_weight = node["weight"].as<int>(_weight);
+	_stats.merge(node["stats"].as<UnitStats>(_stats));
+	if (const YAML::Node &dmg = node["damageModifier"])
+	{
+		for (size_t i = 0; i < dmg.size() && i < DAMAGE_TYPES; ++i)
 		{
-			i.second() >> _type;
-		}
-		else if (key == "spriteSheet")
-		{
-			i.second() >> _spriteSheet;
-		}
-		else if (key == "spriteInv")
-		{
-			i.second() >> _spriteInv;
-		}
-		else if (key == "corpseItem")
-		{
-			i.second() >> _corpseItem;
-		}
-		else if (key == "storeItem")
-		{
-			i.second() >> _storeItem;
-		}
-		else if (key == "frontArmor")
-		{
-			i.second() >> _frontArmor;
-		}
-		else if (key == "sideArmor")
-		{
-			i.second() >> _sideArmor;
-		}
-		else if (key == "rearArmor")
-		{
-			i.second() >> _rearArmor;
-		}
-		else if (key == "underArmor")
-		{
-			i.second() >> _underArmor;
-		}
-		else if (key == "drawingRoutine")
-		{
-			i.second() >> _drawingRoutine;
-		}
-		else if (key == "movementType")
-		{
-			i.second() >> a;
-			_movementType = (MovementType)a;
-		}
-		else if (key == "size")
-		{
-			i.second() >> _size;
-		}
-		else if (key == "damageModifier")
-		{
-			int dmg = 0;
-			for (YAML::Iterator j = i.second().begin(); j != i.second().end(); ++j)
-			{
-				*j >> _damageModifier[dmg];
-				++dmg;
-			}
-		}
-		else if (key == "loftemps")
-		{
-			int a;
-			i.second() >> a;
-			_loftempsSet.push_back(a);
-		}
-		else if (key == "loftempsSet")
-		{
-			i.second() >> _loftempsSet;
+			_damageModifier[i] = dmg[i].as<float>();
 		}
 	}
-}
-
-/**
- * Saves the armor to a YAML file.
- * @param out YAML emitter.
- */
-void Armor::save(YAML::Emitter &out) const
-{
-
-	out << YAML::BeginMap;
-	out << YAML::Key << "type" << YAML::Value << _type;
-	out << YAML::Key << "spriteSheet" << YAML::Value << _spriteSheet;
-	out << YAML::Key << "spriteInv" << YAML::Value << _spriteInv;
-	out << YAML::Key << "corpseItem" << YAML::Value << _corpseItem;
-	out << YAML::Key << "storeItem" << YAML::Value << _storeItem;
-	out << YAML::Key << "frontArmor" << YAML::Value << _frontArmor;
-	out << YAML::Key << "sideArmor" << YAML::Value << _sideArmor;
-	out << YAML::Key << "rearArmor" << YAML::Value << _rearArmor;
-	out << YAML::Key << "underArmor" << YAML::Value << _underArmor;
-	out << YAML::Key << "drawingRoutine" << YAML::Value << _drawingRoutine;
-	out << YAML::Key << "movementType" << YAML::Value << _movementType;
-	out << YAML::Key << "size" << YAML::Value << _size;
-	out << YAML::Key << "damageModifier" << YAML::Value << YAML::BeginSeq;
-	for (int i=0; i < 8; i++)
-		out << _damageModifier[i];
-	if (_loftempsSet.size() == 1)
+	_loftempsSet = node["loftempsSet"].as< std::vector<int> >(_loftempsSet);
+	if (node["loftemps"])
+		_loftempsSet.push_back(node["loftemps"].as<int>());
+	_deathFrames = node["deathFrames"].as<int>(_deathFrames);
+	_constantAnimation = node["constantAnimation"].as<bool>(_constantAnimation);
+	_forcedTorso = (ForcedTorso)node["forcedTorso"].as<int>(_forcedTorso);
+	if (_drawingRoutine == 0 ||
+		_drawingRoutine == 1 ||
+		_drawingRoutine == 4 ||
+		_drawingRoutine == 6 ||
+		_drawingRoutine == 10 ||
+		_drawingRoutine == 13 ||
+		_drawingRoutine == 14 ||
+		_drawingRoutine == 15 ||
+		_drawingRoutine == 17 ||
+		_drawingRoutine == 18)
 	{
-		out << YAML::Key << "loftemps" << YAML::Value << _loftempsSet.front();
+		_canHoldWeapon = true;
 	}
 	else
 	{
-		out << YAML::Key << "loftempsSet" << YAML::Value << _loftempsSet;
+		_canHoldWeapon = false;
 	}
-	out << YAML::EndSeq << YAML::EndMap;
 }
 
 /**
  * Returns the language string that names
  * this armor. Each armor has a unique name. Coveralls, Power Suit,...
- * @return Armor name.
+ * @return The armor name.
  */
 std::string Armor::getType() const
 {
@@ -170,7 +115,7 @@ std::string Armor::getType() const
 
 /**
  * Gets the unit's sprite sheet.
- * @return Sprite sheet name.
+ * @return The sprite sheet name.
  */
 std::string Armor::getSpriteSheet() const
 {
@@ -179,7 +124,7 @@ std::string Armor::getSpriteSheet() const
 
 /**
  * Gets the unit's inventory sprite.
- * @return Inventory sprite name.
+ * @return The inventory sprite name.
  */
 std::string Armor::getSpriteInventory() const
 {
@@ -187,8 +132,8 @@ std::string Armor::getSpriteInventory() const
 }
 
 /**
- * Get the front armor level.
- * @return Front armor level.
+ * Gets the front armor level.
+ * @return The front armor level.
  */
 int Armor::getFrontArmor() const
 {
@@ -196,8 +141,8 @@ int Armor::getFrontArmor() const
 }
 
 /**
- * Get the side armor level.
- * @return Side armor level. 
+ * Gets the side armor level.
+ * @return The side armor level.
  */
 int Armor::getSideArmor() const
 {
@@ -205,8 +150,8 @@ int Armor::getSideArmor() const
 }
 
 /**
- * get the rear armor level.
- * @return Rear armor level. 
+ * Gets the rear armor level.
+ * @return The rear armor level.
  */
 int Armor::getRearArmor() const
 {
@@ -214,8 +159,8 @@ int Armor::getRearArmor() const
 }
 
 /**
- * get the under armor level.
- * @return Under armor level. 
+ * Gets the under armor level.
+ * @return The under armor level.
  */
 int Armor::getUnderArmor() const
 {
@@ -224,17 +169,27 @@ int Armor::getUnderArmor() const
 
 
 /**
- * Get the corpse item.
- * @return Name of the corpse item.
+ * Gets the corpse item used in the Geoscape.
+ * @return The name of the corpse item.
  */
-std::string Armor::getCorpseItem() const
+std::string Armor::getCorpseGeoscape() const
 {
-	return _corpseItem;
+	return _corpseGeo;
 }
 
 /**
- * Get the storage item needed to equip this.
- * @return Name of the store item.
+ * Gets the list of corpse items dropped by the unit
+ * in the Battlescape (one per unit tile).
+ * @return The list of corpse items.
+ */
+const std::vector<std::string> &Armor::getCorpseBattlescape() const
+{
+	return _corpseBattle;
+}
+
+/**
+ * Gets the storage item needed to equip this.
+ * @return The name of the store item.
  */
 std::string Armor::getStoreItem() const
 {
@@ -242,7 +197,7 @@ std::string Armor::getStoreItem() const
 }
 
 /**
- * get the drawing routine ID.
+ * Gets the drawing routine ID.
  * @return The drawing routine ID.
  */
 int Armor::getDrawingRoutine() const
@@ -251,8 +206,12 @@ int Armor::getDrawingRoutine() const
 }
 
 /**
- * Get whether the armor can fly.
- * @return Movementtype
+ * Gets the movement type of this armor.
+ * Useful for determining whether the armor can fly.
+ * @important: do not use this function outside the BattleUnit constructor,
+ * unless you are SURE you know what you are doing.
+ * for more information, see the BattleUnit constructor.
+ * @return The movement type.
  */
 MovementType Armor::getMovementType() const
 {
@@ -260,8 +219,8 @@ MovementType Armor::getMovementType() const
 }
 
 /**
- * Get the size of the unit. Normally this is 1(small) or 2(big).
- * @return size
+ * Gets the size of the unit. Normally this is 1 (small) or 2 (big).
+ * @return The unit's size.
  */
 int Armor::getSize() const
 {
@@ -269,21 +228,75 @@ int Armor::getSize() const
 }
 
 /**
- * Gets damage modifier for a certain damage type.
- * @param dt DamageType
- * @return damage modifier 0->1
+ * Gets the damage modifier for a certain damage type.
+ * @param dt The damageType.
+ * @return The damage modifier 0->1.
  */
 float Armor::getDamageModifier(ItemDamageType dt)
 {
 	return _damageModifier[(int)dt];
 }
 
-/** Gets loftempSet
- * @return loftempsSet
+/** Gets the loftempSet.
+ * @return The loftempsSet.
  */
 std::vector<int> Armor::getLoftempsSet() const
 {
 	return _loftempsSet;
+}
+
+/**
+  * Gets pointer to the armor's stats.
+  * @return stats Pointer to the armor's stats.
+  */
+UnitStats *Armor::getStats()
+{
+	return &_stats;
+}
+
+/**
+ * Gets the armor's weight.
+ * @return the weight of the armor.
+ */
+int Armor::getWeight()
+{
+	return _weight;
+}
+
+/**
+ * Gets number of death frames.
+ * @return number of death frames.
+ */
+int Armor::getDeathFrames()
+{
+	return _deathFrames;
+}
+
+/*
+ * Gets if armor uses constant animation.
+ * @return if it uses constant animation
+ */
+bool Armor::getConstantAnimation()
+{
+	return _constantAnimation;
+}
+
+/*
+ * Gets if armor can hold weapon.
+ * @return if it can hold weapon
+ */
+bool Armor::getCanHoldWeapon()
+{
+	return _canHoldWeapon;
+}
+
+/**
+ * Checks if this armor ignores gender (power suit/flying suit).
+ * @return which torso to force on the sprite.
+ */
+ForcedTorso Armor::getForcedTorso()
+{
+	return _forcedTorso;
 }
 
 }

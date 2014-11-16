@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -20,6 +20,7 @@
 #define OPENXCOM_MAPBLOCK_H
 
 #include <string>
+#include <vector>
 #include <yaml-cpp/yaml.h>
 
 namespace OpenXcom
@@ -27,48 +28,48 @@ namespace OpenXcom
 
 enum MapBlockType {MT_UNDEFINED = -1, MT_DEFAULT, MT_LANDINGZONE, MT_EWROAD, MT_NSROAD, MT_CROSSING, MT_DIRT, MT_XCOMSPAWN, MT_UBASECOMM, MT_FINALCOMM };
 class RuleTerrain;
+class Position;
 
 /**
  * Represents a Terrain Map Block.
- * It contains constant info about this mapblock, like it's name, dimensions, attributes...
- * Map blocks are stored in RuleTerrain objects
+ * It contains constant info about this mapblock, like its name, dimensions, attributes...
+ * Map blocks are stored in RuleTerrain objects.
  * @sa http://www.ufopaedia.org/index.php?title=MAPS_Terrain
  */
 class MapBlock
 {
 private:
-	RuleTerrain *_terrain;
 	std::string _name;
 	int _size_x, _size_y, _size_z;
 	MapBlockType _type, _subType;
 	int _frequency, _timesUsed, _maxCount;
+	std::map<std::string, std::vector<Position> > _items;
 public:
-	MapBlock(RuleTerrain *terrain, std::string name, int size_x, int size_y, MapBlockType type);
+	MapBlock(const std::string &name, int size_x, int size_y, MapBlockType type);
 	~MapBlock();
 	/// Loads the map block from YAML.
 	void load(const YAML::Node& node);
-	/// Saves the map block to YAML.
-	void save(YAML::Emitter& out) const;
 	/// Gets the mapblock's name (used for MAP generation).
 	std::string getName() const;
 	/// Gets the mapblock's x size.
 	int getSizeX() const;
-	/// Get the mapblock's y size.
+	/// Gets the mapblock's y size.
 	int getSizeY() const;
-	/// Get the mapblock's z size.
+	/// Gets the mapblock's z size.
 	int getSizeZ() const;
-	/// Set the mapblock's z size.
+	/// Sets the mapblock's z size.
 	void setSizeZ(int size_z);
 	/// Returns whether this mapblock is a landingzone.
 	MapBlockType getType() const;
 	/// Returns whether this mapblock is a landingzone.
 	MapBlockType getSubType() const;
-	/// Get either remaining uses or frequency.
+	/// Gets either remaining uses or frequency.
 	int getRemainingUses();
-	/// Decrease remaining uses.
+	/// Decreases remaining uses.
 	void markUsed();
-	/// Reset remaining uses.
+	/// Resets remaining uses.
 	void reset();
+	std::map<std::string, std::vector<Position> > *getItems();
 
 };
 

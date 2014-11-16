@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -18,7 +18,7 @@
  */
 
 #include "CatFile.h"
-#include "SDL.h"
+#include <SDL.h>
 
 namespace OpenXcom
 {
@@ -37,10 +37,8 @@ CatFile::CatFile(const char *path) : std::ifstream(path, std::ios::in | std::ios
 	
 	// Get amount of files
 	read((char*)&_amount, sizeof(_amount));
-	
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-	_amount = (unsigned int)SDL_Swap32( _amount );
-#endif	
+
+	_amount = (unsigned int)SDL_SwapLE32(_amount);
 	_amount /= 2 * sizeof(_amount);
 
 	// Get object offsets
@@ -52,13 +50,9 @@ CatFile::CatFile(const char *path) : std::ifstream(path, std::ios::in | std::ios
 	for (unsigned int i = 0; i < _amount; ++i)
 	{
 		read((char*)&_offset[i], sizeof(*_offset));
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-		_offset[i] = (unsigned int)SDL_Swap32( _offset[i] );
-#endif	
+		_offset[i] = (unsigned int)SDL_SwapLE32(_offset[i]);
 		read((char*)&_size[i],   sizeof(*_size));
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-		_size[i] = (unsigned int)SDL_Swap32( _size[i] );
-#endif	
+		_size[i] = (unsigned int)SDL_SwapLE32(_size[i]);
 	}
 }
 
@@ -76,19 +70,29 @@ CatFile::~CatFile()
 /**
  * Loads an object into memory.
  * @param i Object number to load.
+ * @param name Preserve internal file name.
  * @return Pointer to the loaded object.
  */
-char *CatFile::load(unsigned int i)
+char *CatFile::load(unsigned int i, bool name)
 {
 	if (i >= _amount)
 		return 0;
 
 	seekg(_offset[i], std::ios::beg);
 
-	// Skip filename
-	char namesize;
-	read(&namesize, 1);
-	seekg(namesize, std::ios::cur);
+	unsigned char namesize = peek();
+	// Skip filename (if there's any)
+	if (namesize<=56)
+	{
+		if (!name)
+		{
+			seekg(namesize + 1, std::ios::cur);
+		}
+		else
+		{
+			_size[i] += namesize + 1;
+		}
+	}
 
 	// Read object
 	char *object = new char[_size[i]];

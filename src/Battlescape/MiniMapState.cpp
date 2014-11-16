@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -21,20 +21,20 @@
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Engine/Screen.h"
-#include "../Engine/InteractiveSurface.h"
-#include "../Engine/SurfaceSet.h"
+#include "../Interface/BattlescapeButton.h"
 #include "../Resource/ResourcePack.h"
+#include "../Ruleset/Ruleset.h"
+#include "../Ruleset/RuleInterface.h"
+#include "../Engine/Language.h"
 #include "../Engine/Palette.h"
-#include "../Engine/CrossPlatform.h"
-#include "../Savegame/SavedGame.h"
-#include "../Ruleset/MapDataSet.h"
 #include "../Interface/Text.h"
 #include "MiniMapView.h"
-#include "Map.h"
 #include "Camera.h"
 #include "../Engine/Timer.h"
 #include "../Engine/Action.h"
 #include "../Engine/Options.h"
+#include "../Savegame/SavedGame.h"
+#include "../Savegame/SavedBattleGame.h"
 
 namespace OpenXcom
 {
@@ -43,44 +43,54 @@ namespace OpenXcom
  * @param game Pointer to the core game.
  * @param camera The Battlescape camera.
  * @param battleGame The Battlescape save.
-*/
-MiniMapState::MiniMapState (Game * game, Camera * camera, SavedBattleGame * battleGame) : State(game)
+ */
+MiniMapState::MiniMapState (Camera * camera, SavedBattleGame * battleGame)
 {
-	_surface = new InteractiveSurface(320, 200);
-	_miniMapView = new MiniMapView(222, 150, 49, 15, game, camera, battleGame);
-	InteractiveSurface * btnLvlUp = new InteractiveSurface(18, 20, 24, 62);
-	InteractiveSurface * btnLvlDwn = new InteractiveSurface(18, 20, 24, 88);
-	InteractiveSurface * btnOk = new InteractiveSurface(32, 32, 275, 145);
-	_txtLevel = new Text (20, 25, 281, 75);
-	add(_surface);
+	if (Options::maximizeInfoScreens)
+	{
+		Options::baseXResolution = Screen::ORIGINAL_WIDTH;
+		Options::baseYResolution = Screen::ORIGINAL_HEIGHT;
+		_game->getScreen()->resetDisplay(false);
+	}
+
+	_bg = new Surface(320, 200);
+	_miniMapView = new MiniMapView(221, 148, 48, 16, _game, camera, battleGame);
+	_btnLvlUp = new BattlescapeButton(18, 20, 24, 62);
+	_btnLvlDwn = new BattlescapeButton(18, 20, 24, 88);
+	_btnOk = new BattlescapeButton(32, 32, 275, 145);
+	_txtLevel = new Text(28, 16, 281, 75);
+	
+	// Set palette
+	battleGame->setPaletteByDepth(this);
+
+	add(_bg);
+	_game->getResourcePack()->getSurface("SCANBORD.PCK")->blit(_bg);
 	add(_miniMapView);
-	add(btnLvlUp);
-	add(btnLvlDwn);
-	add(btnOk);
-	add(_txtLevel);
+	add(_btnLvlUp, "buttonUp", "minimap", _bg);
+	add(_btnLvlDwn, "buttonDown", "minimap", _bg);
+	add(_btnOk, "buttonOK", "minimap", _bg);
+	add(_txtLevel, "textLevel", "minimap", _bg);
 
 	centerAllSurfaces();
 
-	if (Screen::getDY() > 50)
+	if (_game->getScreen()->getDY() > 50)
 	{
 		_screen = false;
-		SDL_Rect current;
-		current.w = 223;
-		current.h = 151;
-		current.x = 46;
-		current.y = 14;
-		_surface->drawRect(&current, Palette::blockOffset(15)+15);
+		_bg->drawRect(46, 14, 223, 151, Palette::blockOffset(15)+15);
 	}
 
-	_game->getResourcePack()->getSurface("SCANBORD.PCK")->blit(_surface);
-	btnLvlUp->onMouseClick((ActionHandler)&MiniMapState::btnLevelUpClick);
-	btnLvlDwn->onMouseClick((ActionHandler)&MiniMapState::btnLevelDownClick);
-	btnOk->onMouseClick((ActionHandler)&MiniMapState::btnOkClick);
-	btnOk->onKeyboardPress((ActionHandler)&MiniMapState::btnOkClick, (SDLKey)Options::getInt("keyCancel"));
+	_btnLvlUp->onMouseClick((ActionHandler)&MiniMapState::btnLevelUpClick);
+	_btnLvlDwn->onMouseClick((ActionHandler)&MiniMapState::btnLevelDownClick);
+	_btnOk->onMouseClick((ActionHandler)&MiniMapState::btnOkClick);
+	_btnOk->onKeyboardPress((ActionHandler)&MiniMapState::btnOkClick, Options::keyCancel);
+	_btnOk->onKeyboardPress((ActionHandler)&MiniMapState::btnOkClick, Options::keyBattleMap);
 	_txtLevel->setBig();
-	_txtLevel->setColor(Palette::blockOffset(4));
 	_txtLevel->setHighContrast(true);
-	std::wstringstream s;
+	std::wostringstream s;
+	if (_game->getRuleset()->getInterface("minimap")->getElement("textLevel")->TFTDMode)
+	{
+		s << tr("STR_LEVEL_SHORT");
+	}
 	s << camera->getViewLevel();
 	_txtLevel->setText(s.str());
 	_timerAnimate = new Timer(125);
@@ -118,38 +128,51 @@ void MiniMapState::handle(Action *action)
 }
 
 /**
- * return to the previous screen
+ * Returns to the previous screen.
  * @param action Pointer to an action.
  */
 void MiniMapState::btnOkClick(Action *)
 {
+	if (Options::maximizeInfoScreens)
+	{
+		Screen::updateScale(Options::battlescapeScale, Options::battlescapeScale, Options::baseXBattlescape, Options::baseYBattlescape, true);
+		_game->getScreen()->resetDisplay(false);
+	}
 	_game->popState();
 }
 
 /**
- * Change the currently displayed minimap level
+ * Changes the currently displayed minimap level.
  * @param action Pointer to an action.
  */
 void MiniMapState::btnLevelUpClick(Action *)
 {
-	std::wstringstream s;
+	std::wostringstream s;
+	if (_game->getRuleset()->getInterface("minimap")->getElement("textLevel")->TFTDMode)
+	{
+		s << tr("STR_LEVEL_SHORT");
+	}
 	s << _miniMapView->up();
 	_txtLevel->setText(s.str());
 }
 
 /**
- * Change the currently displayed minimap level
+ * Changes the currently displayed minimap level.
  * @param action Pointer to an action.
  */
 void MiniMapState::btnLevelDownClick(Action *)
 {
-	std::wstringstream s;
-	s << _miniMapView->down ();
+	std::wostringstream s;
+	if (_game->getRuleset()->getInterface("minimap")->getElement("textLevel")->TFTDMode)
+	{
+		s << tr("STR_LEVEL_SHORT");
+	}
+	s << _miniMapView->down();
 	_txtLevel->setText(s.str());
 }
 
 /**
- * Animation handler. Update the minimap view animation
+ * Animation handler. Updates the minimap view animation.
 */
 void MiniMapState::animate()
 {
@@ -157,9 +180,9 @@ void MiniMapState::animate()
 }
 
 /**
- * Handle timers
+ * Handles timers.
 */
-void MiniMapState::think ()
+void MiniMapState::think()
 {
 	State::think();
 	_timerAnimate->think(this, 0);

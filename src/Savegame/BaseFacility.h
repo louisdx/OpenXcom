@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -50,7 +50,7 @@ public:
 	/// Loads the base facility from YAML.
 	void load(const YAML::Node& node);
 	/// Saves the base facility to YAML.
-	void save(YAML::Emitter& out) const;
+	YAML::Node save() const;
 	/// Gets the facility's ruleset.
 	RuleBaseFacility *getRules() const;
 	/// Gets the facility's X position.

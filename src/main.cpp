@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -44,8 +44,11 @@ Game *game = 0;
 
 // If you can't tell what the main() is for you should have your
 // programming license revoked...
-int main(int argc, char** args)
+int main(int argc, char *argv[])
 {
+	// Uncomment to check memory leaks in VS
+	//_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+
 #ifndef _DEBUG
 	try
 	{
@@ -53,13 +56,15 @@ int main(int argc, char** args)
 #else
 		Logger::reportingLevel() = LOG_DEBUG;
 #endif
-		if (!Options::init(argc, args))
+		if (!Options::init(argc, argv))
 			return EXIT_SUCCESS;
-		std::stringstream title;
+		std::ostringstream title;
 		title << "OpenXcom " << OPENXCOM_VERSION_SHORT << OPENXCOM_VERSION_GIT;
+		Options::baseXResolution = Options::displayWidth;
+		Options::baseYResolution = Options::displayHeight;
 		game = new Game(title.str());
-		game->setVolume(Options::getInt("soundVolume"), Options::getInt("musicVolume"));
-		game->setState(new StartState(game));
+		State::setGamePtr(game);
+		game->setState(new StartState);
 		game->run();
 #ifndef _DEBUG
 	}
@@ -73,12 +78,10 @@ int main(int argc, char** args)
 
 	// Comment this for faster exit.
 	delete game;
-	// Uncomment to check memory leaks in VS
-	//_CrtDumpMemoryLeaks();
 	return EXIT_SUCCESS;
 }
 
 
 #ifdef __MORPHOS__
-const char Version[] = "$VER: OpenXCom 0.9 (" __AMIGADATE__  ")";
+const char Version[] = "$VER: OpenXCom " OPENXCOM_VERSION_SHORT " (" __AMIGADATE__  ")";
 #endif

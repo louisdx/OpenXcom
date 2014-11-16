@@ -8,6 +8,8 @@
   license: public domain
 */
 
+#ifndef __NO_OPENGL
+
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <yaml-cpp/yaml.h>
@@ -17,6 +19,7 @@
 
 #include "OpenGL.h"
 #include "Logger.h"
+#include "Surface.h"
 
 namespace OpenXcom 
 {
@@ -58,9 +61,21 @@ std::string strGLError(GLenum glErr)
 	return err;
 }
 
-#ifndef __NO_SHADERS
+/* Helper types to convert between object pointers and function pointers.
+   Although ignored by some compilers, this conversion is an extension
+   and not guaranteed to be sane for every architecture.
+ */
+typedef void (*GenericFunctionPointer)();
+typedef union {
+    GenericFunctionPointer FunctionPointer;
+    void *ObjectPointer;
+} UnsafePointerContainer;
 
-#define glGetProcAddress(name) SDL_GL_GetProcAddress(name)
+inline static GenericFunctionPointer glGetProcAddress(const char *name) {
+    UnsafePointerContainer pc;
+    pc.ObjectPointer = SDL_GL_GetProcAddress(name);
+    return pc.FunctionPointer;
+}
 
 #ifndef __APPLE__
 PFNGLCREATEPROGRAMPROC glCreateProgram = 0;
@@ -77,7 +92,6 @@ PFNGLUNIFORM1IPROC glUniform1i = 0;
 PFNGLUNIFORM2FVPROC glUniform2fv = 0;
 PFNGLUNIFORM4FVPROC glUniform4fv = 0;
 #endif
-#endif
 
 void * (APIENTRYP glXGetCurrentDisplay)() = 0;
 Uint32 (APIENTRYP glXGetCurrentDrawable)() = 0;
@@ -88,12 +102,12 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
 
 
   void OpenGL::resize(unsigned width, unsigned height) {
-    if(gltexture == 0) glGenTextures(1, &gltexture);
+    if (gltexture == 0) glGenTextures(1, &gltexture);
 	glErrorCheck();
 	
-    iwidth  = SDL_max(width,  iwidth );
-    iheight = SDL_max(height, iheight);
-    if(buffer_surface) delete buffer_surface;
+	iwidth = width;
+	iheight = height;
+    if (buffer_surface) delete buffer_surface;
     buffer_surface = new Surface(iwidth, iheight, 0, 0, ibpp); // use OpenXcom's Surface class to get an aligned buffer with bonus SDL_Surface
 	buffer = (uint32_t*) buffer_surface->getSurface()->pixels;
 
@@ -115,16 +129,17 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
   }
 
   void OpenGL::clear() {
-    memset(buffer, 0, iwidth * iheight * ibpp);
+    //memset(buffer, 0, iwidth * iheight * ibpp);
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     glFlush();
+	glErrorCheck();
   }
 
-  void OpenGL::refresh(bool smooth, unsigned inwidth, unsigned inheight, unsigned outwidth, unsigned outheight) {
+  void OpenGL::refresh(bool smooth, unsigned inwidth, unsigned inheight, unsigned outwidth, unsigned outheight, int topBlackBand, int bottomBlackBand, int leftBlackBand, int rightBlackBand) {
     while (glGetError() != GL_NO_ERROR); // clear possible error from who knows where
-#ifndef __NO_SHADERS
-    if(shader_support && (fragmentshader || vertexshader)) {    
+	clear();
+    if (shader_support && (fragmentshader || vertexshader)) {    
       glUseProgram(glprogram);
       GLint location;
 
@@ -140,7 +155,6 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
       location = glGetUniformLocation(glprogram, "rubyTextureSize");
       glUniform2fv(location, 1, textureSize);
     }
-#endif
 
 	glErrorCheck();
 
@@ -176,91 +190,75 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
     //vertex range = x1:0, y1:0, x2:width, y2:height
     double w = double(inwidth)  / double(iwidth);
     double h = double(inheight) / double(iheight);
-    int u = outwidth;
-    int v = outheight;
+    int u1 = leftBlackBand;
+    int u2 = outwidth - rightBlackBand;
+    int v1 = outheight - topBlackBand;
+    int v2 = bottomBlackBand;
 	
     glBegin(GL_TRIANGLE_STRIP);
-    glTexCoord2f(0, 0); glVertex3i(0, v, 0);
-    glTexCoord2f(w, 0); glVertex3i(u, v, 0);
-    glTexCoord2f(0, h); glVertex3i(0, 0, 0);
-    glTexCoord2f(w, h); glVertex3i(u, 0, 0);
+    glTexCoord2f(0, 0); glVertex3i(u1, v1, 0);
+    glTexCoord2f(w, 0); glVertex3i(u2, v1, 0);
+    glTexCoord2f(0, h); glVertex3i(u1, v2, 0);
+    glTexCoord2f(w, h); glVertex3i(u2, v2, 0);
     glEnd();
 	glErrorCheck();
 
     glFlush();
 	glErrorCheck();
 
-	#ifndef __NO_SHADERS
-    if(shader_support) {
+    if (shader_support) {
       glUseProgram(0);
     }
-    #endif
   }
 
   void OpenGL::set_shader(const char *source_yaml_filename) {
-#ifndef __NO_SHADERS
+    if (!shader_support) return;
 
-    if(!shader_support) return;
-
-    if(fragmentshader) {
+    if (fragmentshader) {
       glDetachShader(glprogram, fragmentshader);
       glDeleteShader(fragmentshader);
       fragmentshader = 0;
     }
 
-    if(vertexshader) {
+    if (vertexshader) {
       glDetachShader(glprogram, vertexshader);
       glDeleteShader(vertexshader);
       vertexshader = 0;
     }
 
-    if(source_yaml_filename && strlen(source_yaml_filename)) {
-      std::ifstream fin(source_yaml_filename);
-      YAML::Parser parser(fin);
-      YAML::Node document;
-	  parser.GetNextDocument(document);
+    if (source_yaml_filename && strlen(source_yaml_filename)) {
+      YAML::Node document = YAML::LoadFile(source_yaml_filename);
 
       bool is_glsl;
-	  std::string s;
-
-	  document["language"] >> s;
-	  is_glsl = (s == "GLSL");
+	  std::string language = document["language"].as<std::string>();
+	  is_glsl = (language == "GLSL");
 
 
-      document["linear"] >> linear; // some shaders want texture linear interpolation and some don't
-      std::string fragment_source;
-      std::string vertex_source;
-	  if (const YAML::Node *pFrag = document.FindValue("fragment")) *pFrag >> fragment_source;
-	  if (const YAML::Node *pVert = document.FindValue("vertex")) *pVert >> vertex_source;
+      linear = document["linear"].as<bool>(false); // some shaders want texture linear interpolation and some don't
+      std::string fragment_source = document["fragment"].as<std::string>("");
+	  std::string vertex_source = document["vertex"].as<std::string>("");
 
-      if(is_glsl) {
-        if(fragment_source != "") set_fragment_shader(fragment_source.c_str());
-        if(vertex_source != "") set_vertex_shader(vertex_source.c_str());
+      if (is_glsl) {
+        if (!fragment_source.empty()) set_fragment_shader(fragment_source.c_str());
+        if (!vertex_source.empty()) set_vertex_shader(vertex_source.c_str());
       }
     }
 
     glLinkProgram(glprogram);
-#endif
   }
 
   void OpenGL::set_fragment_shader(const char *source) {
-  #ifndef __NO_SHADERS
-
     fragmentshader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragmentshader, 1, &source, 0);
     glCompileShader(fragmentshader);
     glAttachShader(glprogram, fragmentshader);
-    #endif
   }
 
   void OpenGL::set_vertex_shader(const char *source) {
-  #ifndef __NO_SHADERS
-
     vertexshader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexshader, 1, &source, 0);
     glCompileShader(vertexshader);
     glAttachShader(glprogram, vertexshader);
-	#endif
   }
 
   void OpenGL::init(int w, int h) {
@@ -275,7 +273,6 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
     glEnable(GL_DITHER);
     glEnable(GL_TEXTURE_2D);
 
-	#ifndef __NO_SHADERS
     //bind shader functions
 #ifndef __APPLE__
     glCreateProgram = (PFNGLCREATEPROGRAMPROC)glGetProcAddress("glCreateProgram");
@@ -305,8 +302,7 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
     && glDetachShader && glLinkProgram && glGetUniformLocation
     && glUniform1i && glUniform2fv && glUniform4fv;
 	
-    if(shader_support) glprogram = glCreateProgram();
-    #endif
+    if (shader_support) glprogram = glCreateProgram();
 
     //create surface texture
     resize(w, h);
@@ -314,7 +310,6 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
 
 	void OpenGL::setVSync(bool sync)
 	{
-	#ifndef __NO_SHADERS
 		const int interval = sync ? 1 : 0;
 		if (glXGetCurrentDisplay && glXGetCurrentDrawable && glXSwapIntervalEXT)
 		{
@@ -330,16 +325,15 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
 			wglSwapIntervalEXT(interval);
 			// Log(LOG_INFO) << "Made an attempt to set vsync via WGL.";
 		}
-		#endif
 	}
 
   void OpenGL::term() {
-    if(gltexture) {
+    if (gltexture) {
       glDeleteTextures(1, &gltexture);
       gltexture = 0;
     }
 
-    if(buffer) {
+    if (buffer) {
       buffer = 0;
       iwidth = 0;
       iheight = 0;
@@ -358,3 +352,5 @@ Uint32 (APIENTRYP wglSwapIntervalEXT)(int interval);
     term();
   }
 }
+
+#endif

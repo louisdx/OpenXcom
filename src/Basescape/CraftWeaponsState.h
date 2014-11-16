@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -44,12 +44,12 @@ private:
 
 	TextButton *_btnCancel;
 	Window *_window;
-	Text *_txtTitle, *_txtArmament, *_txtQuantity, *_txtAmmunition, *_txtAvailable;
+	Text *_txtTitle, *_txtArmament, *_txtQuantity, *_txtAmmunition;
 	TextList *_lstWeapons;
 	std::vector<RuleCraftWeapon*> _weapons;
 public:
 	/// Creates the Craft Weapons state.
-	CraftWeaponsState(Game *game, Base *base, size_t craft, size_t weapon);
+	CraftWeaponsState(Base *base, size_t craft, size_t weapon);
 	/// Cleans up the Craft Weapons state.
 	~CraftWeaponsState();
 	/// Handler for clicking the Cancel button.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -43,11 +43,11 @@ private:
 	int _sprite;
 	int _fuelMax, _damageMax, _speedMax, _accel, _weapons, _soldiers, _vehicles, _costBuy, _costRent, _costSell;
 	std::string _refuelItem;
-	int _repairRate, _refuelRate, _radarRange, _transferTime, _score;
-	// battlescape:
+	int _repairRate, _refuelRate, _radarRange, _sightRange, _transferTime, _score;
 	RuleTerrain *_battlescapeTerrainData;
 	bool _spacecraft;
-	int _listOrder;
+	int _listOrder, _maxItems;
+	std::vector<std::vector <int> > _deployment;
 public:
 	/// Creates a blank craft ruleset.
 	RuleCraft(const std::string &type);
@@ -55,12 +55,10 @@ public:
 	~RuleCraft();
 	/// Loads craft data from YAML.
 	void load(const YAML::Node& node, Ruleset *ruleset, int modIndex, int nextCraftIndex);
-	/// Saves the craft data to YAML.
-	void save(YAML::Emitter& out) const;
 	/// Gets the craft's type.
 	std::string getType() const;
 	/// Gets the craft's requirements.
-	const std::vector<std::string> &getRequirements () const;
+	const std::vector<std::string> &getRequirements() const;
 	/// Gets the craft's sprite.
 	int getSprite() const;
 	/// Gets the craft's maximum fuel.
@@ -72,7 +70,7 @@ public:
 	/// Gets the craft's acceleration.
 	int getAcceleration() const;
 	/// Gets the craft's weapon capacity.
-	int getWeapons() const;
+	unsigned int getWeapons() const;
 	/// Gets the craft's soldier capacity.
 	int getSoldiers() const;
 	/// Gets the craft's vehicle capacity.
@@ -91,16 +89,21 @@ public:
 	int getRefuelRate() const;
 	/// Gets the craft's radar range.
 	int getRadarRange() const;
+	/// Gets the craft's sight range.
+	int getSightRange() const;
 	/// Gets the craft's transfer time.
 	int getTransferTime() const;
 	/// Gets the craft's score.
 	int getScore() const;
 	/// Gets the craft's terrain data.
 	RuleTerrain *getBattlescapeTerrainData();
-	/// Is this craft capable of travelling to mars.
+	/// Checks if this craft is capable of travelling to mars.
 	bool getSpacecraft() const;
-	/// get the list weight for this craft.
+	/// Gets the list weight for this craft.
 	int getListOrder() const;
+	/// Gets the deployment priority for the craft.
+	std::vector<std::vector<int> > &getDeployment();
+	const int getMaxItems() const;
 };
 
 }

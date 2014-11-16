@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -34,6 +34,7 @@ class Palette
 {
 private:
 	SDL_Color *_colors;
+	int _count;
 public:
 	/// Creates a blank palette.
 	Palette();
@@ -44,6 +45,8 @@ public:
 	// Gets a certain color from the palette.
 	SDL_Color *getColors(int offset = 0) const;
 
+	void savePal(const std::string &file) const;
+	void setColors(SDL_Color* pal, int ncolors);
 	/// Converts a given color into a RGBA color value.
 	static Uint32 getRGBA(SDL_Color* pal, Uint8 color);
 	/// Gets the position of a given palette.

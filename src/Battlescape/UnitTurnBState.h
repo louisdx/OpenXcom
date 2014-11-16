@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -20,21 +20,24 @@
 #define OPENXCOM_UNITTURNBSTATE_H
 
 #include "BattleState.h"
-#include "Position.h"
+#include <string>
 
 namespace OpenXcom
 {
 
 class BattleUnit;
 
+/**
+ * State for turning units.
+ */
 class UnitTurnBState : public BattleState
 {
 private:
 	BattleUnit *_unit;
-	bool _turret;
+	bool _turret, _chargeTUs;
 public:
 	/// Creates a new UnitTurnBState class
-	UnitTurnBState(BattlescapeGame *parent, BattleAction action);
+	UnitTurnBState(BattlescapeGame *parent, BattleAction action, bool chargeTUs = true);
 	/// Cleans up the UnitTurnBState.
 	~UnitTurnBState();
 	/// Initializes the state.
@@ -43,7 +46,7 @@ public:
 	void cancel();
 	/// Runs state functionality every cycle.
 	void think();
-	/// Get the result of the state.
+	/// Gets the result of the state.
 	std::string getResult() const;
 };
 

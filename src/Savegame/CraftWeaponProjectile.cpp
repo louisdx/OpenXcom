@@ -39,7 +39,7 @@ CraftWeaponProjectile::~CraftWeaponProjectile(void)
  * weapon it was shot from. This is used for drawing the
  * projectiles.
  */
-void CraftWeaponProjectile::setType(const int type)
+void CraftWeaponProjectile::setType(CraftWeaponProjectileType type)
 {
 	_type = type;
 	if (type >= CWPT_LASER_BEAM)
@@ -53,7 +53,7 @@ void CraftWeaponProjectile::setType(const int type)
  * Returns the type of projectile.
  * @return Projectile type as an integer value.
  */
-int CraftWeaponProjectile::getType() const
+CraftWeaponProjectileType CraftWeaponProjectile::getType() const
 {
 	return _type;
 }
@@ -62,7 +62,7 @@ int CraftWeaponProjectile::getType() const
  * Returns the global type of projectile.
  * @return 0 - if it's a missile, 1 if beam.
  */
-int CraftWeaponProjectile::getGlobalType() const
+CraftWeaponProjectileGlobalType CraftWeaponProjectile::getGlobalType() const
 {
 	return _globalType;
 }
@@ -73,7 +73,7 @@ int CraftWeaponProjectile::getGlobalType() const
 void CraftWeaponProjectile::setDirection(const int &directon)
 {
 	_direction = directon;
-	if(_direction == D_UP)
+	if (_direction == D_UP)
 	{
 		_currentPosition = 0;
 	}
@@ -93,28 +93,33 @@ int CraftWeaponProjectile::getDirection() const
  */
 void CraftWeaponProjectile::move()
 {
-	if(_globalType == CWPGT_MISSILE)
+	if (_globalType == CWPGT_MISSILE)
 	{
-		if(_direction == D_UP)
-		{
-			_currentPosition += _speed;
-		}
-		else if(_direction == D_DOWN)
-		{
-			_currentPosition -= _speed;
-		}
-		
-		_distanceCovered += _speed;
-		
-		// Check if projectile passed it's maximum range.
-		if (getGlobalType() == CWPGT_MISSILE && (_distanceCovered / 8) >= getRange())
-			setMissed(true);
+		int positionChange = _speed;
 
+		// Check if projectile would reach its maximum range this tick.
+		if ((_distanceCovered / 8) < getRange() && ((_distanceCovered + _speed)/ 8) >= getRange())
+			positionChange = getRange() * 8 - _distanceCovered;
+
+		// Check if projectile passed its maximum range on previous tick. 
+		if ((_distanceCovered / 8) >= getRange())
+			setMissed(true);
+		
+		if (_direction == D_UP)
+		{
+			_currentPosition += positionChange;
+		}
+		else if (_direction == D_DOWN)
+		{
+			_currentPosition -= positionChange;
+		}
+		
+		_distanceCovered += positionChange;
 	}
-	else if(_globalType == CWPGT_BEAM)
+	else if (_globalType == CWPGT_BEAM)
 	{
 		_state /= 2;
-		if(_state == 1)
+		if (_state == 1)
 		{
 			_toBeRemoved = true;
 		}

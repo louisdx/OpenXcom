@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -32,10 +32,14 @@ class MapDataSet;
 class MapData;
 class Ruleset;
 
+struct LandingSite
+{
+	int x, y, sizeX, sizeY;
+};
 /**
  * Represents a specific type of Battlescape Terrain.
- * - the names of the objectsets needed in this specific terrain
- * - the mapblocks that can be used to build this terrain
+ * - the names of the objectsets needed in this specific terrain.
+ * - the mapblocks that can be used to build this terrain.
  * @sa http://www.ufopaedia.org/index.php?title=TERRAIN
  */
 class RuleTerrain
@@ -45,15 +49,15 @@ private:
 	std::vector<MapBlock*> _mapBlocks;
 	std::string _name;
 	int _largeBlockLimit;
-	std::vector<int> _textures;
-	int _hemisphere;
+	std::vector<int> _textures, _roadTypeOdds;
+	std::vector<std::string> _civilianTypes;
+	int _hemisphere, _minDepth, _maxDepth, _ambience;
+	std::vector<LandingSite*> _ufoPositions, _craftPositions;
 public:
 	RuleTerrain(const std::string &name);
 	~RuleTerrain();
 	/// Loads the terrain from YAML.
 	void load(const YAML::Node& node, Ruleset *ruleset);
-	/// Saves the terrain to YAML.
-	void save(YAML::Emitter& out) const;
 	/// Gets the terrain's name (used for MAP generation).
 	std::string getName() const;
 	/// Gets the terrain's mapblocks.
@@ -62,15 +66,29 @@ public:
 	std::vector<MapDataSet*> *getMapDataSets();
 	/// Gets a random mapblock.
 	MapBlock *getRandomMapBlock(int maxsize, MapBlockType type, bool force = false);
-	/// Get a mapblock given it's name.
-	MapBlock* getMapBlock(const std::string &name);
-	/// Get the mapdata object.
-	MapData *getMapData(int *id, int *mapDataSetID) const;
+	/// Gets a mapblock given its name.
+	MapBlock *getMapBlock(const std::string &name);
+	/// Gets the mapdata object.
+	MapData *getMapData(unsigned int *id, int *mapDataSetID) const;
+	/// Gets the maximum amount of large blocks in this terrain.
 	int getLargeBlockLimit() const;
 	void resetMapBlocks();
 	std::vector<int> *getTextures();
 	int getHemisphere() const;
-
+	/// Gets teh civilian types to use.
+	std::vector<std::string> getCivilianTypes() const;
+	/// Gets road type odds.
+	std::vector<int> getRoadTypeOdds() const;
+	/// get the minimum depth.
+	const int getMinDepth() const;
+	/// get the maximum depth.
+	const int getMaxDepth() const;
+	/// get the ambient sound effect.
+	const int getAmbience() const;
+	/// get a list of potential UFO landing zones for this map.
+	const std::vector<LandingSite*> *getUfoPositions();
+	/// get a list of potential xcom craft landing zones for this map.
+	const std::vector<LandingSite*> *getCraftPositions();
 };
 
 }

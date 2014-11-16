@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -40,24 +40,24 @@ class Base;
 class CraftEquipmentState : public State
 {
 private:
-	TextButton *_btnOk, *_btnClear;
+	TextButton *_btnOk, *_btnClear, *_btnInventory;
 	Window *_window;
 	Text *_txtTitle, *_txtItem, *_txtStores, *_txtAvailable, *_txtUsed, *_txtCrew;
 	TextList *_lstEquipment;
 	Timer *_timerLeft, *_timerRight;
-	unsigned int _sel;
+	size_t _sel, _craft;
 	Base *_base;
-	size_t _craft;
 	std::vector<std::string> _items;
-	int _changeValueByMouseWheel;
-	bool _allowChangeListValuesByMouseWheel;
+	int _totalItems;
 	/// Updates quantities of item.
 	void updateQuantity();
 public:
 	/// Creates the Craft Equipment state.
-	CraftEquipmentState(Game *game, Base *base, size_t craft);
+	CraftEquipmentState(Base *base, size_t craft);
 	/// Cleans up the Craft Equipment state.
 	~CraftEquipmentState();
+	/// Resets state.
+	void init();
 	/// Runs the timers.
 	void think();
 	/// Handler for clicking the OK button.
@@ -86,6 +86,8 @@ public:
 	void moveRightByValue(int change);
 	/// Empties the contents of the craft, moving all of the items back to the base.
 	void btnClearClick(Action *action);
+	/// Handler for clicking the Inventory button.
+	void btnInventoryClick(Action *action);
 };
 
 }

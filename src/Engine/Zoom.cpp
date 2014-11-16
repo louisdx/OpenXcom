@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -19,8 +19,6 @@
 
 #include "Zoom.h"
 
-//#include "Scalers/hq2x.hpp"
-
 #include "Exception.h"
 #include "Surface.h"
 #include "Logger.h"
@@ -37,6 +35,9 @@
 #include "Scalers/common.h"
 #include "Scalers/hqx.h"
 
+// xBRZ
+
+#include "Scalers/xbrz.h"
 
 #if (_MSC_VER >= 1400) || (defined(__MINGW32__) && defined(__SSE2__))
 
@@ -48,7 +49,7 @@
 #endif
 
 #ifdef __GNUC__
-#ifndef __MORPHOS__
+#if (__i386__ || __x86_64__)
 #include <cpuid.h>
 #endif
 #endif
@@ -64,10 +65,15 @@ namespace OpenXcom
 
 
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 2. Doesn't flip.
- *  Used internally by _zoomSurfaceY() below.
- *  source and dest. widths must be multiples of 8 bytes for 64-bit access
+ * Optimized 8-bit zoomer for resizing by a factor of 2. Doesn't flip.
+ * Used internally by _zoomSurfaceY() below.
+ * source and dest. widths must be multiples of 8 bytes for 64-bit access
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface2X_64bit(SDL_Surface *src, SDL_Surface *dst)
 {
 	Uint64 dataSrc;
@@ -90,10 +96,9 @@ static int zoomSurface2X_64bit(SDL_Surface *src, SDL_Surface *dst)
 		for (sx = 0; sx < src->w; sx += 8, pixelSrc += 8)
 		{
 			dataSrc = *((Uint64*) pixelSrc);
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 			// boo
-			SDL_Swap64(dataSrc);
-#endif
+			(void)SDL_SwapLE64(dataSrc);
+*/
 /* expanded form of of data shift: 
 			dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
 				((dataSrc & 0xFF00 ) << 8) | ((dataSrc & 0xFF00)) << 16)  | 
@@ -101,6 +106,7 @@ static int zoomSurface2X_64bit(SDL_Surface *src, SDL_Surface *dst)
 				((dataSrc & 0xFF000000) << 24) | ((dataSrc & 0xFF000000) << 32);
 */
 			// compact form, combining terms with equal multipliers (shifts)
+/*
 			dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
 				((dataSrc & 0xFFFF00) << 16)  | 
 				((dataSrc & 0xFFFF0000) << 24) |
@@ -126,17 +132,23 @@ static int zoomSurface2X_64bit(SDL_Surface *src, SDL_Surface *dst)
 	
 	return 0;
 }
+*/
 
 
 #if defined(__WORDSIZE) && (__WORDSIZE == 64) || defined(SIZE_MAX) && (SIZE_MAX > 0xFFFFFFFF)
 #else
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 2. Doesn't flip.
- *  32-bit version for sad old x86 chips which run out of registers 
- *  with the 64-bit version.
- *  Used internally by _zoomSurfaceY() below.
- *  source and dest. widths must be multiples of 4 bytes for 32-bit access
+ * Optimized 8-bit zoomer for resizing by a factor of 2. Doesn't flip.
+ * 32-bit version for sad old x86 chips which run out of registers 
+ * with the 64-bit version.
+ * Used internally by _zoomSurfaceY() below.
+ * source and dest. widths must be multiples of 4 bytes for 32-bit access
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface2X_32bit(SDL_Surface *src, SDL_Surface *dst)
 {
 	Uint32 dataSrc;
@@ -160,13 +172,11 @@ static int zoomSurface2X_32bit(SDL_Surface *src, SDL_Surface *dst)
 		for (sx = 0; sx < src->w; sx += 4, pixelSrc += 4)
 		{
 			dataSrc = *((Uint32*) pixelSrc);
-			
-			
-			#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+
 			// boo
-			dataSrc = SDL_Swap32(dataSrc);
+			dataSrc = SDL_SwapLE32(dataSrc);
 			
-			dataDst = SDL_Swap32( (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
+			dataDst = SDL_SwapLE32( (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
 				((dataSrc & 0xFF00) << 16)  );
 
 			*pixelDst = dataDst;
@@ -176,47 +186,32 @@ static int zoomSurface2X_32bit(SDL_Surface *src, SDL_Surface *dst)
 
 			dataSrc >>= 16; 
 
-			dataDst = SDL_Swap32( (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
+			dataDst = SDL_SwapLE32( (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
 				((dataSrc & 0xFF00) << 16)  );
 
 			*pixelDst = dataDst;
 			*pixelDst2 = dataDst;
 			pixelDst++; // forward 4 bytes!
-			pixelDst2++;	
-			#else
-			
-			dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
-				((dataSrc & 0xFF00) << 16) ;
-
-			*pixelDst = dataDst;
-			*pixelDst2 = dataDst;
-			pixelDst++; // forward 4 bytes!
 			pixelDst2++;
-
-			dataSrc >>= 16; 
-
-			dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
-				((dataSrc & 0xFF00) << 16) ;
-
-			*pixelDst = dataDst;
-			*pixelDst2 = dataDst;
-			pixelDst++; // forward 4 bytes!
-			pixelDst2++;	
-			
-			#endif
 		}
 		
 	}
 	
 	return 0;
 }
+*/
 #endif
 
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 4. Doesn't flip.
- *  Used internally by _zoomSurfaceY() below.
- *  source and dest. widths must be multiples of 8 bytes for 64-bit access
+ * Optimized 8-bit zoomer for resizing by a factor of 4. Doesn't flip.
+ * Used internally by _zoomSurfaceY() below.
+ * source and dest. widths must be multiples of 8 bytes for 64-bit access
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface4X_64bit(SDL_Surface *src, SDL_Surface *dst)
 {
 	Uint64 dataSrc;
@@ -239,16 +234,16 @@ static int zoomSurface4X_64bit(SDL_Surface *src, SDL_Surface *dst)
 		for (sx = 0; sx < src->w; sx += 8, pixelSrc += 8)
 		{
 			dataSrc = *((Uint64*) pixelSrc);
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 			// boo
-			SDL_Swap64(dataSrc);
-#endif
+			(void)SDL_SwapLE64(dataSrc);
+*/
 			/* expanded form of of data shift:
 			dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
 				((dataSrc & 0xFF) << 16 | ((datasrc & 0xFF) << 24) |
 				((dataSrc & 0xFF00 ) << 24) | ((dataSrc & 0xFF00) << 32)  | 
 				((dataSrc & 0xFF00 ) << 40) | ((dataSrc & 0xFF00) << 48) ;
 				 */
+/*
 			for (int i = 0; i < 4; ++i)
 			{
 				// compact form, combining terms with equal multipliers (shifts)
@@ -269,16 +264,22 @@ static int zoomSurface4X_64bit(SDL_Surface *src, SDL_Surface *dst)
 	
 	return 0;
 }
+*/
 
 
 #if defined(__WORDSIZE) && (__WORDSIZE == 64) || defined(SIZE_MAX) && (SIZE_MAX > 0xFFFFFFFF)
 #else
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 4. Doesn't flip.
- *  32-bit version.
- *  Used internally by _zoomSurfaceY() below.
- *  source and dest. widths must be multiples of 4 bytes for 32-bit access
+ * Optimized 8-bit zoomer for resizing by a factor of 4. Doesn't flip.
+ * 32-bit version.
+ * Used internally by _zoomSurfaceY() below.
+ * source and dest. widths must be multiples of 4 bytes for 32-bit access
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface4X_32bit(SDL_Surface *src, SDL_Surface *dst)
 {
 	Uint32 dataSrc;
@@ -303,21 +304,13 @@ static int zoomSurface4X_32bit(SDL_Surface *src, SDL_Surface *dst)
 		for (sx = 0; sx < src->w; sx += 4, pixelSrc += 4)
 		{
 			dataSrc = *((Uint32*) pixelSrc);
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 			// boo
-			dataSrc = SDL_Swap32(dataSrc);
+			dataSrc = SDL_SwapLE32(dataSrc);
 			
 			for (int i = 0; i < 4; ++i)
 			{
-				dataDst = SDL_Swap32( (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
+				dataDst = SDL_SwapLE32( (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
 					((dataSrc & 0xFF) << 16) | ((dataSrc & 0xFF ) << 24) ); 
-#else
-			for (int i = 0; i < 4; ++i)
-			{
-				dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
-					((dataSrc & 0xFF) << 16) | ((dataSrc & 0xFF ) << 24); 
-
-#endif
 
 				*pixelDst = dataDst;
 				*pixelDst2 = dataDst;
@@ -334,14 +327,20 @@ static int zoomSurface4X_32bit(SDL_Surface *src, SDL_Surface *dst)
 	
 	return 0;
 }
+*/
 #endif
 
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 4. Doesn't flip.
- *  32-bit version.
- *  Used internally by _zoomSurfaceY() below.
- *  source and dest. widths must be multiples of 4 bytes for 32-bit access
+ * Optimized 8-bit zoomer for resizing by a factor of 4. Doesn't flip.
+ * 32-bit version.
+ * Used internally by _zoomSurfaceY() below.
+ * source and dest. widths must be multiples of 4 bytes for 32-bit access
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface2X_XAxis_32bit(SDL_Surface *src, SDL_Surface *dst)
 {
 	Uint32 dataSrc;
@@ -392,22 +391,13 @@ static int zoomSurface2X_XAxis_32bit(SDL_Surface *src, SDL_Surface *dst)
 		for (sx = 0; sx < src->w; sx += 4, pixelSrc += 4)
 		{
 			dataSrc = *((Uint32*) pixelSrc);
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 			// boo
-			dataSrc = SDL_Swap32(dataSrc);
+			dataSrc = SDL_SwapLE32(dataSrc);
 			
 			for (int i = 0; i < 2; ++i)
 			{
-				dataDst = SDL_Swap32( (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
+				dataDst = SDL_SwapLE32( (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
 					((dataSrc & 0xFF00) << 16) );
-			
-#else
-			for (int i = 0; i < 2; ++i)
-			{
-				dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFFFF) << 8) | 
-					((dataSrc & 0xFF00) << 16);
-
-#endif
 
 				int j = 0;
 				do
@@ -415,7 +405,7 @@ static int zoomSurface2X_XAxis_32bit(SDL_Surface *src, SDL_Surface *dst)
 					if (dsty + j >= dst->h) break;
 
 					*(pixelDst + (dst->pitch/sizeof(Uint32))*j) = dataDst;
-				} while(say[dsty + ++j] == 0); // fill in all relevant rows
+				} while (say[dsty + ++j] == 0); // fill in all relevant rows
 				
 				dataSrc >>= 16;
 				pixelDst++; // forward 4 bytes!
@@ -425,14 +415,20 @@ static int zoomSurface2X_XAxis_32bit(SDL_Surface *src, SDL_Surface *dst)
 	
 	return 0;
 }
+*/
 
 
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 2. Doesn't flip.
- *  32-bit version.
- *  Used internally by _zoomSurfaceY() below.
- *  source and dest. widths must be multiples of 4 bytes for 32-bit access
+ * Optimized 8-bit zoomer for resizing by a factor of 2. Doesn't flip.
+ * 32-bit version.
+ * Used internally by _zoomSurfaceY() below.
+ * source and dest. widths must be multiples of 4 bytes for 32-bit access
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface4X_XAxis_32bit(SDL_Surface *src, SDL_Surface *dst)
 {
 	Uint32 dataSrc;
@@ -483,28 +479,21 @@ static int zoomSurface4X_XAxis_32bit(SDL_Surface *src, SDL_Surface *dst)
 		for (sx = 0; sx < src->w; sx += 4, pixelSrc += 4)
 		{
 			dataSrc = *((Uint32*) pixelSrc);
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 			// boo
-			dataSrc = SDL_Swap32(dataSrc);
+			dataSrc = SDL_SwapLE32(dataSrc);
 			
 			for (int i = 0; i < 4; ++i)
 			{
-				dataDst = SDL_Swap32( (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
+				dataDst = SDL_SwapLE32( (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
 					((dataSrc & 0xFF) << 16) | ((dataSrc & 0xFF ) << 24) ); 
 			
-#else
-			for (int i = 0; i < 4; ++i)
-			{
-				dataDst = (dataSrc & 0xFF) | ((dataSrc & 0xFF) << 8) | 
-					((dataSrc & 0xFF) << 16) | ((dataSrc & 0xFF ) << 24); 
-#endif
 				int j = 0;
 				do
 				{
 					if (dsty + j >= dst->h) break;
 
 					*(pixelDst + (dst->pitch/sizeof(Uint32))*j) = dataDst;
-				} while(say[dsty + ++j] == 0); // fill in all relevant rows
+				} while (say[dsty + ++j] == 0); // fill in all relevant rows
 				
 				dataSrc >>= 8;
 				pixelDst++; // forward 4 bytes!
@@ -514,15 +503,21 @@ static int zoomSurface4X_XAxis_32bit(SDL_Surface *src, SDL_Surface *dst)
 	
 	return 0;
 }
+*/
 
 #ifdef __SSE2__
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 4. Doesn't flip.
- *  Used internally by _zoomSurfaceY() below.
- *	This is an SSE2 version written with Intel intrinsics.
- *  source and dest. widths must be multiples of 16 bytes for 128-bit access
- *  and it would help if they were aligned properly... :(
+ * Optimized 8-bit zoomer for resizing by a factor of 4. Doesn't flip.
+ * Used internally by _zoomSurfaceY() below.
+ * This is an SSE2 version written with Intel intrinsics.
+ * source and dest. widths must be multiples of 16 bytes for 128-bit access
+ * and it would help if they were aligned properly... :(
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface4X_SSE2(SDL_Surface *src, SDL_Surface *dst)
 {
 	__m128i dataSrc;
@@ -550,13 +545,14 @@ static int zoomSurface4X_SSE2(SDL_Surface *src, SDL_Surface *dst)
 
 			__m128i halfDone = _mm_unpacklo_epi8(dataSrc, dataSrc); 
 			dataDst = _mm_unpacklo_epi8(halfDone, halfDone);
-
+*/
 /* #define WRITE_DST if ((char*)pixelDst4 + 128 > (char*)dst->pixels+(dst->w*dst->pitch)) { Log(LOG_ERROR) << "HELL"; exit(0); } \ */
 #define WRITE_DST			*(pixelDst++) = dataDst; \
 			*(pixelDst2++) = dataDst; \
 			*(pixelDst3++) = dataDst; \
 			*(pixelDst4++) = dataDst; \
 			
+/*
 			WRITE_DST;
 			
 			dataDst = _mm_unpackhi_epi8(halfDone, halfDone);
@@ -576,14 +572,20 @@ static int zoomSurface4X_SSE2(SDL_Surface *src, SDL_Surface *dst)
 
 	return 0;
 }
+*/
 
 /**
- *  Optimized 8 bit zoomer for resizing by a factor of 2. Doesn't flip.
- *  Used internally by _zoomSurfaceY() below.
- *	This is an SSE2 version written with Intel intrinsics.
- *  source and dest. widths must be multiples of 16 bytes for 128-bit access
- *  and it would help if they were aligned properly... :(
+ * Optimized 8-bit zoomer for resizing by a factor of 2. Doesn't flip.
+ * Used internally by _zoomSurfaceY() below.
+ * This is an SSE2 version written with Intel intrinsics.
+ * source and dest. widths must be multiples of 16 bytes for 128-bit access
+ * and it would help if they were aligned properly... :(
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @return 0 for success or -1 for error.
  */
+/*
 static int zoomSurface2X_SSE2(SDL_Surface *src, SDL_Surface *dst)
 {
 	__m128i dataSrc;
@@ -624,19 +626,22 @@ static int zoomSurface2X_SSE2(SDL_Surface *src, SDL_Surface *dst)
 	
 	return 0;
 }
+*/
 
-/** Checks the SSE2 feature bit returned by the CPUID instruction
+/**
+ * Checks the SSE2 feature bit returned by the CPUID instruction
+ * @return Does the CPU support SSE2?
  */
 bool Zoom::haveSSE2()
 {
 #ifdef __GNUC__
-	unsigned int CPUInfo[4];
+	unsigned int CPUInfo[4] = {0, 0, 0, 0};
 	__get_cpuid(1, CPUInfo, CPUInfo+1, CPUInfo+2, CPUInfo+3);
 #elif _WIN32
 	int CPUInfo[4];
 	__cpuid(CPUInfo, 1);
 #else
-	return false;
+	unsigned int CPUInfo[4] = {0, 0, 0, 0};
 #endif
 
 	return (CPUInfo[3] & 0x04000000) ? true : false;
@@ -647,28 +652,59 @@ bool Zoom::haveSSE2()
 /**
  * Wrapper around various software and OpenGL screen buffer pushing functions which zoom.
  * Basically called just from Screen::flip()
+ *
+ * @param src The surface to zoom (input).
+ * @param dst The zoomed surface (output).
+ * @param topBlackBand Size of top black band in pixels (letterboxing).
+ * @param bottomBlackBand Size of bottom black band in pixels (letterboxing).
+ * @param leftBlackBand Size of left black band in pixels (letterboxing).
+ * @param rightBlackBand Size of right black band in pixels (letterboxing).
+ * @param glOut OpenGL output.
  */
-void Zoom::flipWithZoom(SDL_Surface *src, SDL_Surface *dst, OpenGL *glOut)
+void Zoom::flipWithZoom(SDL_Surface *src, SDL_Surface *dst, int topBlackBand, int bottomBlackBand, int leftBlackBand, int rightBlackBand, OpenGL *glOut)
 {
-	if (Screen::isOpenGLEnabled() && glOut->buffer_surface)
+	if (Screen::isOpenGLEnabled())
 	{
-		SDL_BlitSurface(src, 0, glOut->buffer_surface->getSurface(), 0); // TODO; this is less than ideal...
+#ifndef __NO_OPENGL
+		if (glOut->buffer_surface)
+		{
+			SDL_BlitSurface(src, 0, glOut->buffer_surface->getSurface(), 0); // TODO; this is less than ideal...
 
-		glOut->refresh(glOut->linear, glOut->iwidth, glOut->iheight, dst->w, dst->h);
-		SDL_GL_SwapBuffers();
-	} else
+			glOut->refresh(glOut->linear, glOut->iwidth, glOut->iheight, dst->w, dst->h, topBlackBand, bottomBlackBand, leftBlackBand, rightBlackBand);
+			SDL_GL_SwapBuffers();
+		}
+#endif
+	}
+	else if (topBlackBand <= 0 && bottomBlackBand <= 0 && leftBlackBand <= 0 && rightBlackBand <= 0)
 	{
 		_zoomSurfaceY(src, dst, 0, 0);
+	}
+	else if (dst->w - leftBlackBand - rightBlackBand == src->w && dst->h - topBlackBand - bottomBlackBand == src->h)
+	{
+		SDL_Rect dstrect = {(Sint16)leftBlackBand, (Sint16)topBlackBand, (Uint16)src->w, (Uint16)src->h};
+		SDL_BlitSurface(src, NULL, dst, &dstrect);
+	}
+	else
+	{
+		SDL_Surface *tmp = SDL_CreateRGBSurface(dst->flags, dst->w - leftBlackBand - rightBlackBand, dst->h - topBlackBand - bottomBlackBand, dst->format->BitsPerPixel, 0, 0, 0, 0);
+		_zoomSurfaceY(src, tmp, 0, 0);
+		if (src->format->palette != NULL)
+		{
+			SDL_SetPalette(tmp, SDL_LOGPAL|SDL_PHYSPAL, src->format->palette->colors, 0, src->format->palette->ncolors);
+		}
+		SDL_Rect dstrect = {(Sint16)leftBlackBand, (Sint16)topBlackBand, (Uint16)tmp->w, (Uint16)tmp->h};
+		SDL_BlitSurface(tmp, NULL, dst, &dstrect);
+		SDL_FreeSurface(tmp);
 	}
 }
 
 
 /**
- * Internal 8 bit Zoomer without smoothing.
+ * Internal 8-bit Zoomer without smoothing.
  * Source code originally from SDL_gfx (LGPL) with permission by author.
  *
  * Zooms 8bit palette/Y 'src' surface to 'dst' surface.
- * Assumes src and dst surfaces are of 8 bit depth.
+ * Assumes src and dst surfaces are of 8-bit depth.
  * Assumes dst surface was allocated with the correct dimensions.
  *
  * @param src The surface to zoom (input).
@@ -687,64 +723,68 @@ int Zoom::_zoomSurfaceY(SDL_Surface * src, SDL_Surface * dst, int flipx, int fli
 	int dgap;
 	static bool proclaimed = false;
 
-	if (Options::getBool("useHQXFilter"))
+	if (Screen::is32bitEnabled())
 	{
-		static bool initDone = false;
-
-		if (!initDone)
+		if (Options::useXBRZFilter)
 		{
-			hqxInit();
-			initDone = true;
+			// check the resolution to see which scale we need
+			for (size_t factor = 2; factor <= 5; factor++)
+			{
+				if (dst->w == src->w * (int)factor && dst->h == src->h * (int)factor)
+				{
+					xbrz::scale(factor, (uint32_t*)src->pixels, (uint32_t*)dst->pixels, src->w, src->h);
+					return 0;
+				}
+			}
 		}
 
-		// HQX_API void HQX_CALLCONV hq2x_32_rb( uint32_t * src, uint32_t src_rowBytes, uint32_t * dest, uint32_t dest_rowBytes, int width, int height );
-
-		if (dst->w == src->w * 2 && dst->h == src->h * 2)
+		if (Options::useHQXFilter)
 		{
-			hq2x_32_rb((uint32_t*) src->pixels, src->pitch, (uint32_t*) dst->pixels, dst->pitch, src->w, src->h);
-			return 0;
-		}
+			static bool initDone = false;
 
-		if (dst->w == src->w * 3 && dst->h == src->h * 3)
-		{
-			hq3x_32_rb((uint32_t*) src->pixels, src->pitch, (uint32_t*) dst->pixels, dst->pitch, src->w, src->h);
-			return 0;
-		}
+			if (!initDone)
+			{
+				hqxInit();
+				initDone = true;
+			}
 
-		if (dst->w == src->w * 4 && dst->h == src->h * 4)
-		{
-			hq4x_32_rb((uint32_t*) src->pixels, src->pitch, (uint32_t*) dst->pixels, dst->pitch, src->w, src->h);
-			return 0;
-		}
+			// HQX_API void HQX_CALLCONV hq2x_32_rb( uint32_t * src, uint32_t src_rowBytes, uint32_t * dest, uint32_t dest_rowBytes, int width, int height );
 
+			if (dst->w == src->w * 2 && dst->h == src->h * 2)
+			{
+				hq2x_32_rb((uint32_t*)src->pixels, src->pitch, (uint32_t*)dst->pixels, dst->pitch, src->w, src->h);
+				return 0;
+			}
+
+			if (dst->w == src->w * 3 && dst->h == src->h * 3)
+			{
+				hq3x_32_rb((uint32_t*)src->pixels, src->pitch, (uint32_t*)dst->pixels, dst->pitch, src->w, src->h);
+				return 0;
+			}
+
+			if (dst->w == src->w * 4 && dst->h == src->h * 4)
+			{
+				hq4x_32_rb((uint32_t*)src->pixels, src->pitch, (uint32_t*)dst->pixels, dst->pitch, src->w, src->h);
+				return 0;
+			}
+		}
 	}
 
-	if (Options::getBool("useScaleFilter"))
+	if (Options::useScaleFilter)
 	{
 		// check the resolution to see which of scale2x, scale3x, etc. we need
-
-		if (dst->w == src->w * 2 && dst->h == src->h *2 && !scale_precondition(2, src->format->BytesPerPixel, src->w, src->h))
+		for (size_t factor = 2; factor <= 4; factor++)
 		{
-			scale(2, dst->pixels, dst->pitch, src->pixels, src->pitch, src->format->BytesPerPixel, src->w, src->h);
-			return 0;
+			if (dst->w == src->w * (int)factor && dst->h == src->h * (int)factor && !scale_precondition(factor, src->format->BytesPerPixel, src->w, src->h))
+			{
+				scale(factor, dst->pixels, dst->pitch, src->pixels, src->pitch, src->format->BytesPerPixel, src->w, src->h);
+				return 0;
+			}
 		}
-
-		if (dst->w == src->w * 3 && dst->h == src->h *3 && !scale_precondition(3, src->format->BytesPerPixel, src->w, src->h))
-		{
-			scale(3, dst->pixels, dst->pitch, src->pixels, src->pitch, src->format->BytesPerPixel, src->w, src->h);
-			return 0;
-		}
-
-		if (dst->w == src->w * 4 && dst->h == src->h *4 && !scale_precondition(4, src->format->BytesPerPixel, src->w, src->h))
-		{
-			scale(4, dst->pixels, dst->pitch, src->pixels, src->pitch, src->format->BytesPerPixel, src->w, src->h);
-			return 0;
-		}
-
 	}
 
 	// if we're scaling by a factor of 2 or 4, try to use a more efficient function	
-
+	/*
 	if (src->format->BytesPerPixel == 1 && dst->format->BytesPerPixel == 1)
 	{
 
@@ -763,6 +803,7 @@ int Zoom::_zoomSurfaceY(SDL_Surface * src, SDL_Surface * dst, int flipx, int fli
 
 			if (!complained)
 			{
+				complained = true;
 				Log(LOG_ERROR) << "Misaligned surface buffers.";
 			}
 		}
@@ -789,10 +830,10 @@ int Zoom::_zoomSurfaceY(SDL_Surface * src, SDL_Surface * dst, int flipx, int fli
 		if (dst->w == src->w * 4) return zoomSurface4X_XAxis_32bit(src, dst);
 		else if (dst->w == src->w * 2) return zoomSurface2X_XAxis_32bit(src, dst);
 	}
-
+	*/
 	if (!proclaimed)
 	{
-		Log(LOG_INFO) << "Using slower scaling routine. For best results, try a resolution of 640x400 or 1280x800.";
+		Log(LOG_INFO) << "Using software scaling routine. For best results, try an OpenGL filter.";
 		proclaimed = true;
 	}
 	

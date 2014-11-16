@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -44,16 +44,16 @@ namespace OpenXcom
  * assigns it the latest craft ID available.
  * @param rules Pointer to ruleset.
  * @param base Pointer to base of origin.
- * @param ids List of craft IDs (Leave NULL for no ID).
+ * @param id ID to assign to the craft (0 to not assign).
  */
-Craft::Craft(RuleCraft *rules, Base *base, int id) : MovingTarget(), _rules(rules), _base(base), _id(0), _fuel(0), _damage(0), _interceptionOrder(0), _weapons(), _status("STR_READY"), _lowFuel(false), _inBattlescape(false), _inDogfight(false), _name(L"")
+Craft::Craft(RuleCraft *rules, Base *base, int id) : MovingTarget(), _rules(rules), _base(base), _id(0), _fuel(0), _damage(0), _interceptionOrder(0), _takeoff(0), _status("STR_READY"), _lowFuel(false), _mission(false), _inBattlescape(false), _inDogfight(false)
 {
 	_items = new ItemContainer();
 	if (id != 0)
 	{
 		_id = id;
 	}
-	for (int i = 0; i < _rules->getWeapons(); ++i)
+	for (unsigned int i = 0; i < _rules->getWeapons(); ++i)
 	{
 		_weapons.push_back(0);
 	}
@@ -80,20 +80,69 @@ Craft::~Craft()
  * Loads the craft from a YAML file.
  * @param node YAML node.
  * @param rule Ruleset for the saved game.
+ * @param save Pointer to the saved game.
  */
 void Craft::load(const YAML::Node &node, const Ruleset *rule, SavedGame *save)
 {
 	MovingTarget::load(node);
-	node["id"] >> _id;
-	node["fuel"] >> _fuel;
-	node["damage"] >> _damage;
+	_id = node["id"].as<int>(_id);
+	_fuel = node["fuel"].as<int>(_fuel);
+	_damage = node["damage"].as<int>(_damage);
 
-	if (const YAML::Node *pName = node.FindValue("dest"))
+	size_t j = 0;
+	for (YAML::const_iterator i = node["weapons"].begin(); i != node["weapons"].end(); ++i)
 	{
-		std::string type;
-		int id;
-		(*pName)["type"] >> type;
-		(*pName)["id"] >> id;
+		if (_rules->getWeapons() > j)
+		{
+			std::string type = (*i)["type"].as<std::string>();
+			if (type != "0" && rule->getCraftWeapon(type))
+			{
+				CraftWeapon *w = new CraftWeapon(rule->getCraftWeapon(type), 0);
+				w->load(*i);
+				_weapons[j] = w;
+			}
+			else
+			{
+				_weapons[j] = 0;
+			}
+			j++;
+		}
+	}
+
+	_items->load(node["items"]);
+	for (std::map<std::string, int>::iterator i = _items->getContents()->begin(); i != _items->getContents()->end();)
+	{
+		if (std::find(rule->getItemsList().begin(), rule->getItemsList().end(), i->first) == rule->getItemsList().end())
+		{
+			_items->getContents()->erase(i++);
+		}
+		else
+		{
+			++i;
+		}
+	}
+	for (YAML::const_iterator i = node["vehicles"].begin(); i != node["vehicles"].end(); ++i)
+	{
+		std::string type = (*i)["type"].as<std::string>();
+		if (rule->getItem(type))
+		{
+			Vehicle *v = new Vehicle(rule->getItem(type), 0, 4);
+			v->load(*i);
+			_vehicles.push_back(v);
+		}
+	}
+	_status = node["status"].as<std::string>(_status);
+	_lowFuel = node["lowFuel"].as<bool>(_lowFuel);
+	_mission = node["mission"].as<bool>(_mission);
+	_interceptionOrder = node["interceptionOrder"].as<int>(_interceptionOrder);
+	if (const YAML::Node name = node["name"])
+	{
+		_name = Language::utf8ToWstr(name.as<std::string>());
+	}
+	if (const YAML::Node &dest = node["dest"])
+	{
+		std::string type = dest["type"].as<std::string>();
+		int id = dest["id"].as<int>();
 		if (type == "STR_BASE")
 		{
 			returnToBase();
@@ -143,99 +192,78 @@ void Craft::load(const YAML::Node &node, const Ruleset *rule, SavedGame *save)
 			}
 		}
 	}
-
-	unsigned int j = 0;
-	for (YAML::Iterator i = node["weapons"].begin(); i != node["weapons"].end(); ++i)
-	{
-		std::string type;
-		(*i)["type"] >> type;
-		if (type != "0")
-		{
-			CraftWeapon *w = new CraftWeapon(rule->getCraftWeapon(type), 0);
-			w->load(*i);
-			_weapons[j++] = w;
-		}
-	}
-
-	_items->load(node["items"]);
-	for (YAML::Iterator i = node["vehicles"].begin(); i != node["vehicles"].end(); ++i)
-	{
-		std::string type;
-		(*i)["type"] >> type;
-		Vehicle *v = new Vehicle(rule->getItem(type), 0);
-		v->load(*i);
-		_vehicles.push_back(v);
-	}
-	node["status"] >> _status;
-	node["lowFuel"] >> _lowFuel;
-	node["inBattlescape"] >> _inBattlescape;
-	node["inDogfight"] >> _inDogfight;
-	node["interceptionOrder"] >> _interceptionOrder;
-	if (const YAML::Node *pName = node.FindValue("name"))
-	{
-		std::string name;
-		(*pName) >> name;
-		_name = Language::utf8ToWstr(name);
-	}
+	_takeoff = node["takeoff"].as<int>(_takeoff);
+	_inBattlescape = node["inBattlescape"].as<bool>(_inBattlescape);
 	if (_inBattlescape)
 		setSpeed(0);
 }
 
 /**
  * Saves the craft to a YAML file.
- * @param out YAML emitter.
+ * @return YAML node.
  */
-void Craft::save(YAML::Emitter &out) const
+YAML::Node Craft::save() const
 {
-	MovingTarget::save(out);
-	out << YAML::Key << "type" << YAML::Value << _rules->getType();
-	out << YAML::Key << "id" << YAML::Value << _id;
-	out << YAML::Key << "fuel" << YAML::Value << _fuel;
-	out << YAML::Key << "damage" << YAML::Value << _damage;
-	out << YAML::Key << "weapons" << YAML::Value;
-	out << YAML::BeginSeq;
+	YAML::Node node = MovingTarget::save();
+	node["type"] = _rules->getType();
+	node["id"] = _id;
+	node["fuel"] = _fuel;
+	node["damage"] = _damage;
 	for (std::vector<CraftWeapon*>::const_iterator i = _weapons.begin(); i != _weapons.end(); ++i)
 	{
+		YAML::Node subnode;
 		if (*i != 0)
 		{
-			(*i)->save(out);
+			subnode = (*i)->save();
 		}
 		else
 		{
-			out << YAML::BeginMap;
-			out << YAML::Key << "type" << YAML::Value << "0";
-			out << YAML::EndMap;
+			subnode["type"] = "0";
 		}
+		node["weapons"].push_back(subnode);
 	}
-	out << YAML::EndSeq;
-	out << YAML::Key << "items" << YAML::Value;
-	_items->save(out);
-	out << YAML::Key << "vehicles" << YAML::Value;
-	out << YAML::BeginSeq;
+	node["items"] = _items->save();
 	for (std::vector<Vehicle*>::const_iterator i = _vehicles.begin(); i != _vehicles.end(); ++i)
 	{
-		(*i)->save(out);
+		node["vehicles"].push_back((*i)->save());
 	}
-	out << YAML::EndSeq;
-	out << YAML::Key << "status" << YAML::Value << _status;
-	out << YAML::Key << "lowFuel" << YAML::Value << _lowFuel;
-	out << YAML::Key << "inBattlescape" << YAML::Value << _inBattlescape;
-	out << YAML::Key << "inDogfight" << YAML::Value << false;
-	out << YAML::Key << "interceptionOrder" << YAML::Value << _interceptionOrder;
-	out << YAML::Key << "name" << YAML::Value << Language::wstrToUtf8(_name);
-	out << YAML::EndMap;
+	node["status"] = _status;
+	if (_lowFuel)
+		node["lowFuel"] = _lowFuel;
+	if (_mission)
+		node["mission"] = _mission;
+	if (_inBattlescape)
+		node["inBattlescape"] = _inBattlescape;
+	if (_interceptionOrder != 0)
+		node["interceptionOrder"] = _interceptionOrder;
+	if (_takeoff != 0)
+		node["takeoff"] = _takeoff;
+	if (!_name.empty())
+		node["name"] = Language::wstrToUtf8(_name);
+	return node;
+}
+
+/**
+ * Loads a craft unique identifier from a YAML file.
+ * @param node YAML node.
+ * @return Unique craft id.
+ */
+CraftId Craft::loadId(const YAML::Node &node)
+{
+	return std::make_pair(node["type"].as<std::string>(), node["id"].as<int>());
 }
 
 /**
  * Saves the craft's unique identifiers to a YAML file.
- * @param out YAML emitter.
+ * @return YAML node.
  */
-void Craft::saveId(YAML::Emitter &out) const
+YAML::Node Craft::saveId() const
 {
-	MovingTarget::saveId(out);
-	out << YAML::Key << "type" << YAML::Value << _rules->getType();
-	out << YAML::Key << "id" << YAML::Value << _id;
-	out << YAML::EndMap;
+	YAML::Node node = MovingTarget::saveId();
+	CraftId uniqueId = getUniqueId();
+	node["type"] = uniqueId.first;
+	node["id"] = uniqueId.second;
+	return node;
 }
 
 /**
@@ -249,14 +277,14 @@ RuleCraft *Craft::getRules() const
 
 /**
  * Changes the ruleset for the craft's type.
- * @return Pointer to ruleset.
- * @note NOT TO BE USED IN NORMAL CIRCUMSTANCES.
+ * @param rules Pointer to ruleset.
+ * @warning ONLY FOR NEW BATTLE USE!
  */
-void Craft::setRules(RuleCraft *rules)
+void Craft::changeRules(RuleCraft *rules)
 {
 	_rules = rules;
 	_weapons.clear();
-	for (int i = 0; i < _rules->getWeapons(); ++i)
+	for (unsigned int i = 0; i < _rules->getWeapons(); ++i)
 	{
 		_weapons.push_back(0);
 	}
@@ -281,11 +309,7 @@ int Craft::getId() const
 std::wstring Craft::getName(Language *lang) const
 {
 	if (_name.empty())
-	{
-		std::wstringstream name;
-		name << lang->getString(_rules->getType()) << "-" << _id;
-		return name.str();
-	}
+		return lang->getString("STR_CRAFTNAME").arg(lang->getString(_rules->getType())).arg(_id);
 	return _name;
 }
 
@@ -296,6 +320,17 @@ std::wstring Craft::getName(Language *lang) const
 void Craft::setName(const std::wstring &newName)
 {
 	_name = newName;
+}
+
+/**
+ * Returns the globe marker for the craft.
+ * @return Marker sprite, -1 if none.
+ */
+int Craft::getMarker() const
+{
+	if (_status != "STR_OUT")
+		return -1;
+	return 1;
 }
 
 /**
@@ -310,21 +345,16 @@ Base *Craft::getBase() const
 /**
  * Changes the base the craft belongs to.
  * @param base Pointer to base.
+ * @param move Move the craft to the base coordinates.
  */
-void Craft::setBase(Base *base)
+void Craft::setBase(Base *base, bool move)
 {
 	_base = base;
-	_lon = base->getLongitude();
-	_lat = base->getLatitude();
-}
-
-/**
- * Changes the base the craft belongs to. (without setting the craft's coordinates)
- * @param base Pointer to base.
- */
-void Craft::setBaseOnly(Base *base)
-{
-	_base = base;
+	if (move)
+	{
+		_lon = base->getLongitude();
+		_lat = base->getLatitude();
+	}
 }
 
 /**
@@ -362,12 +392,17 @@ std::string Craft::getAltitude() const
 	}
 }
 
+
 /**
  * Changes the destination the craft is heading to.
  * @param dest Pointer to new destination.
  */
 void Craft::setDestination(Target *dest)
 {
+	if (_status != "STR_OUT")
+	{
+		_takeoff = 60;
+	}
 	if (dest == 0)
 		setSpeed(_rules->getMaxSpeed()/2);
 	else
@@ -562,6 +597,26 @@ void Craft::setLowFuel(bool low)
 }
 
 /**
+ * Returns whether the craft has just done a ground mission,
+ * and is forced to return to base.
+ * @return True if it's returning, false otherwise.
+ */
+bool Craft::getMissionComplete() const
+{
+	return _mission;
+}
+
+/**
+ * Changes whether the craft has just done a ground mission,
+ * and is forced to return to base.
+ * @param mission True if it's returning, false otherwise.
+ */
+void Craft::setMissionComplete(bool mission)
+{
+	_mission = mission;
+}
+
+/**
  * Returns the current distance between the craft
  * and the base it belongs to.
  * @return Distance in radian.
@@ -578,7 +633,7 @@ double Craft::getDistanceFromBase() const
  */
 int Craft::getFuelConsumption() const
 {
-	if (_rules->getRefuelItem() != "")
+	if (!_rules->getRefuelItem().empty())
 		return 1;
 	return (int)floor(_speed / 100.0);
 }
@@ -596,6 +651,7 @@ int Craft::getFuelLimit() const
 /**
  * Returns the minimum required fuel for the
  * craft to go to a base.
+ * @param base Pointer to target base.
  * @return Fuel amount.
  */
 int Craft::getFuelLimit(Base *base) const
@@ -616,7 +672,14 @@ void Craft::returnToBase()
  */
 void Craft::think()
 {
-	move();
+	if (_takeoff == 0)
+	{
+		move();
+	}
+	else
+	{
+		_takeoff--;
+	}
 	if (reachedDestination() && _dest == (Target*)_base)
 	{
 		setInterceptionOrder(0);
@@ -624,6 +687,8 @@ void Craft::think()
 		setDestination(0);
 		setSpeed(0);
 		_lowFuel = false;
+		_mission = false;
+		_takeoff = 0;
 	}
 }
 
@@ -723,11 +788,12 @@ void Craft::refuel()
 /**
  * Rearms the craft's weapons by adding ammo every hour
  * while it's docked in the base.
+ * @param rules Pointer to ruleset.
  * @return The ammo ID missing for rearming, or "" if none.
  */
-std::string Craft::rearm()
+std::string Craft::rearm(Ruleset *rules)
 {
-	std::string ammo = "";
+	std::string ammo;
 	for (std::vector<CraftWeapon*>::iterator i = _weapons.begin(); ; ++i)
 	{
 		if (i == _weapons.end())
@@ -737,14 +803,27 @@ std::string Craft::rearm()
 		}
 		if (*i != 0 && (*i)->isRearming())
 		{
-			if ((*i)->getRules()->getClipItem() == "" || _base->getItems()->getItem((*i)->getRules()->getClipItem()) > 0)
+			std::string clip = (*i)->getRules()->getClipItem();
+			int available = _base->getItems()->getItem(clip);
+			if (clip.empty())
 			{
-				(*i)->rearm();
-				_base->getItems()->removeItem((*i)->getRules()->getClipItem());
+				(*i)->rearm(0, 0);
+			}
+			else if (available > 0)
+			{
+				int used = (*i)->rearm(available, rules->getItem(clip)->getClipSize());
+
+				if (used == available && (*i)->isRearming())
+				{
+					ammo = clip;
+					(*i)->setRearming(false);
+				}
+
+				_base->getItems()->removeItem(clip, used);
 			}
 			else
 			{
-				ammo = (*i)->getRules()->getClipItem();
+				ammo = clip;
 				(*i)->setRearming(false);
 			}
 			break;
@@ -802,7 +881,12 @@ int Craft::getSpaceAvailable() const
  */
 int Craft::getSpaceUsed() const
 {
-	return getNumSoldiers() + getNumVehicles() * 4;
+	int vehicleSpaceUsed = 0;
+	for (std::vector<Vehicle*>::const_iterator i = _vehicles.begin(); i != _vehicles.end(); ++i)
+	{
+		vehicleSpaceUsed += (*i)->getSize();
+	}
+	return getNumSoldiers() + vehicleSpaceUsed;
 }
 
 /**
@@ -844,6 +928,7 @@ void Craft::setInDogfight(bool inDogfight)
 
 /**
  * Sets interception order (first craft to leave the base gets 1, second 2, etc.).
+ * @param order Interception order.
  */
 void Craft::setInterceptionOrder(const int order)
 {
@@ -852,10 +937,20 @@ void Craft::setInterceptionOrder(const int order)
 
 /**
  * Gets interception order.
+ * @return Interception order.
  */
 int Craft::getInterceptionOrder() const
 {
 	return _interceptionOrder;
+}
+
+/**
+ * Gets the craft's unique id.
+ * @return A tuple of the craft's type and per-type id.
+ */
+CraftId Craft::getUniqueId() const
+{
+	return std::make_pair(_rules->getType(), _id);
 }
 
 }

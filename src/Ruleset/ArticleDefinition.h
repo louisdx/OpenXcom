@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -37,7 +37,8 @@ namespace OpenXcom
 		UFOPAEDIA_TYPE_BASE_FACILITY   = 6,
 		UFOPAEDIA_TYPE_TEXTIMAGE       = 7,
 		UFOPAEDIA_TYPE_TEXT            = 8,
-		UFOPAEDIA_TYPE_UFO             = 9
+		UFOPAEDIA_TYPE_UFO             = 9,
+		UFOPAEDIA_TYPE_TFTD            = 10
 	};
 
 	/**
@@ -49,19 +50,17 @@ namespace OpenXcom
 	class ArticleDefinition
 	{
 	protected:
-		/// constructor (protected, so this class cannot be instantiated directly).
+		/// Constructor (protected, so this class cannot be instantiated directly).
 		ArticleDefinition(UfopaediaTypeId type_id);
 
 	public:
-		/// destructor
+		/// Destructor.
 		virtual ~ArticleDefinition();
-		/// get the type of article definition.
+		/// Gets the type of article definition.
 		UfopaediaTypeId getType() const;
 		/// Loads the article from YAML.
 		virtual void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		virtual void save(YAML::Emitter& out) const;
-		/// Gets the article's list weight
+		/// Gets the article's list weight.
 		int getListOrder() const;
 
 		std::string id;
@@ -87,8 +86,6 @@ namespace OpenXcom
 		int width;
 		int height;
 	};
-	void operator>> (const YAML::Node& node, ArticleDefinitionRect& rect);
-	YAML::Emitter& operator<< (YAML::Emitter& out, const ArticleDefinitionRect& rect);
 
 	/**
 	 * ArticleDefinitionCraft defines articles for craft, e.g. SKYRANGER.
@@ -98,12 +95,10 @@ namespace OpenXcom
 	class ArticleDefinitionCraft : public ArticleDefinition
 	{
 	public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionCraft();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
 
 		std::string image_id;
 		ArticleDefinitionRect rect_stats;
@@ -119,12 +114,10 @@ namespace OpenXcom
 	class ArticleDefinitionCraftWeapon : public ArticleDefinition
 	{
 	public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionCraftWeapon();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
 
 		std::string image_id;
 		std::string text;
@@ -137,12 +130,10 @@ namespace OpenXcom
 	class ArticleDefinitionText : public ArticleDefinition
 	{
 		public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionText();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
 
 		std::string text;
 	};
@@ -155,12 +146,28 @@ namespace OpenXcom
 	class ArticleDefinitionTextImage : public ArticleDefinition
 	{
 		public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionTextImage();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
+
+		std::string image_id;
+		std::string text;
+		int text_width;
+	};
+
+	/**
+	 * ArticleDefinitionTextImage defines articles with text on the left and
+	 * an image on the right side of the screen, e.g. ALIEN LIFEFORMS, UFO COMPONENTS.
+	 */
+
+	class ArticleDefinitionTFTD : public ArticleDefinition
+	{
+		public:
+		/// Constructor.
+		ArticleDefinitionTFTD();
+		/// Loads the article from YAML.
+		void load(const YAML::Node& node, int listOrder);
 
 		std::string image_id;
 		std::string text;
@@ -175,12 +182,10 @@ namespace OpenXcom
 	class ArticleDefinitionBaseFacility : public ArticleDefinition
 	{
 	public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionBaseFacility();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
 
 		std::string text;
 	};
@@ -193,12 +198,10 @@ namespace OpenXcom
 	class ArticleDefinitionItem : public ArticleDefinition
 	{
 	public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionItem();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
 
 		std::string text;
 	};
@@ -211,12 +214,10 @@ namespace OpenXcom
 	class ArticleDefinitionUfo : public ArticleDefinition
 	{
 	public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionUfo();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
 
 		std::string text;
 	};
@@ -229,12 +230,12 @@ namespace OpenXcom
 	class ArticleDefinitionArmor : public ArticleDefinition
 	{
 	public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionArmor();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
+
+		std::string text;
 	};
 
 	/**
@@ -245,16 +246,14 @@ namespace OpenXcom
 	class ArticleDefinitionVehicle : public ArticleDefinition
 	{
 	public:
-		/// Constructor
+		/// Constructor.
 		ArticleDefinitionVehicle();
 		/// Loads the article from YAML.
 		void load(const YAML::Node& node, int listOrder);
-		/// Saves the article to YAML.
-		void save(YAML::Emitter& out) const;
+
 		std::string text;
 		std::string weapon;
 	};
-
 
 }
 

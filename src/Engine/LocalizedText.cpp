@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -27,7 +27,7 @@ namespace OpenXcom
  * @param val The value to place in the next placeholder's position.
  * @return A translated string with all occurences of the marker replaced by @a val.
  */
-LocalizedText LocalizedText::arg(std::wstring const &val) const
+LocalizedText LocalizedText::arg(const std::wstring &val) const
 {
 	std::wostringstream os;
 	os << '{' << _nextArg << '}';
@@ -36,7 +36,7 @@ LocalizedText LocalizedText::arg(std::wstring const &val) const
 	if (std::wstring::npos == pos)
 		return *this;
 	std::wstring ntext(_text);
-	for (/*empty*/ ; std::wstring::npos != pos; pos = ntext.find(marker, pos + 1))
+	for (/*empty*/ ; std::wstring::npos != pos; pos = ntext.find(marker, pos + val.length()))
 	{
 		ntext.replace(pos, marker.length(), val);
 	}
@@ -48,7 +48,7 @@ LocalizedText LocalizedText::arg(std::wstring const &val) const
  * @param val The value to place in the next placeholder's position.
  * @return The translated string with all occurences of the marker replaced by @a val.
  */
-LocalizedText &LocalizedText::arg(std::wstring const &val)
+LocalizedText &LocalizedText::arg(const std::wstring &val)
 {
 	std::wostringstream os;
 	os << '{' << _nextArg << '}';
@@ -56,7 +56,7 @@ LocalizedText &LocalizedText::arg(std::wstring const &val)
 	size_t pos = _text.find(marker);
 	if (std::wstring::npos != pos)
 	{
-		for (/*empty*/ ; std::wstring::npos != pos; pos = _text.find(marker, pos + 1))
+		for (/*empty*/ ; std::wstring::npos != pos; pos = _text.find(marker, pos + val.length()))
 		{
 			_text.replace(pos, marker.length(), val);
 		}

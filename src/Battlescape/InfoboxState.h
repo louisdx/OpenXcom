@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -20,7 +20,6 @@
 #define OPENXCOM_INFOBOXSTATE_H
 
 #include "../Engine/State.h"
-#include "BattlescapeState.h"
 
 namespace OpenXcom
 {
@@ -28,20 +27,21 @@ namespace OpenXcom
 class Game;
 class Text;
 class Timer;
+class Frame;
 
 /**
- * Window that briefly shows an info like : Yasuaki Okamoto Has Panicked. It disappears after 2 seconds.
+ * Frame that briefly shows some info like : Yasuaki Okamoto Has Panicked. It disappears after 2 seconds.
  */
 class InfoboxState : public State
 {
 private:
 	Text *_text;
-	Window *_window;
+	Frame *_frame;
 	Timer *_timer;
 public:
 	static const int INFOBOX_DELAY = 2000;
 	/// Creates the Infobox state.
-	InfoboxState(Game *game, const std::wstring &msg);
+	InfoboxState(const std::wstring &msg);
 	/// Cleans up the Infobox state.
 	~InfoboxState();
 	/// Handler for clicking anything.

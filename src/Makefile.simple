@@ -1,8 +1,11 @@
 # Target system.
 # Leave blank for standard Linux builds.
 # Put DINGOO for Dingoo A320 builds.
-# Put OSX for MacOSX 10.7 unix-style builds.
+# Put OSX for MacOSX unix-style builds.
+TARGET =
+ifeq ($(shell uname),Darwin)
 TARGET = OSX
+endif
 
 # Directories and files
 OBJDIR = ../obj/
@@ -22,9 +25,11 @@ endif
 
 # Compiler settings
 ifeq ($(TARGET),OSX)
-CXXFLAGS ?= -Wall -Wextra -O2 
+CXXFLAGS ?= -O2
+CXXFLAGS += -Wall -Wextra
 else
-CXXFLAGS ?= -Wall -Wextra -O2 -rdynamic
+CXXFLAGS ?= -O2
+CXXFLAGS += -Wall -Wextra -rdynamic
 endif
 
 CXXFLAGS += $(addprefix -D,$(TARGET))
@@ -46,7 +51,7 @@ $(OBJDIR)%.o:: %.cpp
 
 $(OBJDIR)%.o:: Basescape/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
-	
+
 $(OBJDIR)%.o:: Battlescape/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
@@ -54,6 +59,9 @@ $(OBJDIR)%.o:: Engine/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(OBJDIR)%.o:: Engine/Scalers/%.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+$(OBJDIR)%.o:: Engine/Adlib/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(OBJDIR)%.o:: Geoscape/%.cpp
@@ -64,13 +72,13 @@ $(OBJDIR)%.o:: Interface/%.cpp
 
 $(OBJDIR)%.o:: Menu/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
-	
+
 $(OBJDIR)%.o:: Resource/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
-	
+
 $(OBJDIR)%.o:: Ruleset/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
-	
+
 $(OBJDIR)%.o:: Savegame/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 

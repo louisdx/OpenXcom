@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -55,7 +55,7 @@ void ResearchProject::setAssigned (int nb)
 	_assigned = nb;
 }
 
-const RuleResearch * ResearchProject::getRules () const
+const RuleResearch * ResearchProject::getRules() const
 {
 	return _project;
 }
@@ -64,7 +64,7 @@ const RuleResearch * ResearchProject::getRules () const
  * Returns the number of scientist assigned to this project
  * @return Number of assigned scientist.
  */
-int ResearchProject::getAssigned () const
+int ResearchProject::getAssigned() const
 {
 	return _assigned;
 }
@@ -73,7 +73,7 @@ int ResearchProject::getAssigned () const
  * Returns the time already spent on this project
  * @return the time already spent on this ResearchProject(in man/day)
  */
-int ResearchProject::getSpent () const
+int ResearchProject::getSpent() const
 {
 	return _spent;
 }
@@ -111,39 +111,33 @@ void ResearchProject::setCost(int f)
  */
 void ResearchProject::load(const YAML::Node& node)
 {
-	int assigned;
-	int spent;
-	int cost;
-	node["assigned"] >> assigned;
-	node["spent"] >> spent;
-	node["cost"] >> cost;
-	setAssigned(assigned);
-	setSpent(spent);
-	setCost(cost);
+	setAssigned(node["assigned"].as<int>(getAssigned()));
+	setSpent(node["spent"].as<int>(getSpent()));
+	setCost(node["cost"].as<int>(getCost()));
 }
 
 /**
  * Saves the research project to a YAML file.
- * @param out YAML emitter.
+ * @return YAML node.
  */
-void ResearchProject::save(YAML::Emitter& out) const
+YAML::Node ResearchProject::save() const
 {
-	out << YAML::BeginMap;
-	out << YAML::Key << "project" << YAML::Value << getRules ()->getName ();
-	out << YAML::Key << "assigned" << YAML::Value << getAssigned ();
-	out << YAML::Key << "spent" << YAML::Value << getSpent ();
-	out << YAML::Key << "cost" << YAML::Value << getCost ();
-	out << YAML::EndMap;
+	YAML::Node node;
+	node["project"] = getRules()->getName();
+	node["assigned"] = getAssigned();
+	node["spent"] = getSpent();
+	node["cost"] = getCost();
+	return node;
 }
 
 /**
  * Return a string describing Research progress.
  * @return a string describing Research progress.
 */
-std::string ResearchProject::getResearchProgress () const
+std::string ResearchProject::getResearchProgress() const
 {
-	float progress = (float)getSpent () / getRules ()->getCost();
-	if (getAssigned () == 0)
+	float progress = (float)getSpent() / getRules()->getCost();
+	if (getAssigned() == 0)
 	{
 		return "STR_NONE";
 	}
@@ -153,8 +147,8 @@ std::string ResearchProject::getResearchProgress () const
 	}
 	else
 	{
-		float rating = (float)getAssigned ();
-		rating /= getRules ()->getCost();
+		float rating = (float)getAssigned();
+		rating /= getRules()->getCost();
 		if (rating < PROGRESS_LIMIT_POOR)
 		{
 			return "STR_POOR";

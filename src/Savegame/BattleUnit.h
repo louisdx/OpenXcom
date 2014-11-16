@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -35,7 +35,6 @@ class Tile;
 class BattleItem;
 class Unit;
 class BattleAIState;
-class BattlescapeState;
 class Node;
 class Surface;
 class RuleInventory;
@@ -43,8 +42,8 @@ class Soldier;
 class Armor;
 class SavedGame;
 class Language;
-class AggroBAIState;
-class PatrolBAIState;
+class AlienBAIState;
+class CivilianBAIState;
 
 enum UnitStatus {STATUS_STANDING, STATUS_WALKING, STATUS_FLYING, STATUS_TURNING, STATUS_AIMING, STATUS_COLLAPSING, STATUS_DEAD, STATUS_UNCONSCIOUS, STATUS_PANICKING, STATUS_BERSERK};
 enum UnitFaction {FACTION_PLAYER, FACTION_HOSTILE, FACTION_NEUTRAL};
@@ -83,7 +82,7 @@ private:
 	bool _visible;
 	Surface *_cache[5];
 	bool _cacheInvalid;
-	int _expBravery, _expReactions, _expFiring, _expThrowing, _expPsiSkill, _expMelee;
+	int _expBravery, _expReactions, _expFiring, _expThrowing, _expPsiSkill, _expPsiStrength, _expMelee;
 	int improveStat(int exp);
 	int _motionPoints;
 	int _kills;
@@ -92,10 +91,10 @@ private:
 	int _moraleRestored;
 	int _coverReserve;
 	BattleUnit *_charging;
-	int _turnsExposed;
-	std::string _zombieUnit, _spawnUnit;
+	int _turnsSinceSpotted;
+	std::string _spawnUnit;
 	std::string _activeHand;
-	
+
 	// static data
 	std::string _type;
 	std::string _rank;
@@ -113,17 +112,21 @@ private:
 	Unit *_unitRules;
 	int _rankInt;
 	int _turretType;
+	int _breathFrame;
+	bool _breathing;
+	bool _hidingForTurn, _floorAbove, _respawn;
+	MovementType _movementType;
 public:
 	static const int MAX_SOLDIER_ID = 1000000;
 	/// Creates a BattleUnit.
-	BattleUnit(Soldier *soldier, UnitFaction faction);
-	BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, int diff);
+	BattleUnit(Soldier *soldier, int depth);
+	BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, int diff, int depth);
 	/// Cleans up the BattleUnit.
 	~BattleUnit();
 	/// Loads the unit from YAML.
 	void load(const YAML::Node& node);
 	/// Saves the unit to YAML.
-	void save(YAML::Emitter& out) const;
+	YAML::Node save() const;
 	/// Gets the BattleUnit's ID.
 	int getId() const;
 	/// Sets the unit's position
@@ -183,7 +186,7 @@ public:
 	/// Aim.
 	void aim(bool aiming);
 	/// Get direction to a certain point
-	int getDirectionTo(const Position &point) const;
+	int directionTo(const Position &point) const;
 	/// Gets the unit's time units.
 	int getTimeUnits() const;
 	/// Gets the unit's stamina.
@@ -198,6 +201,8 @@ public:
 	void healStun(int power);
 	/// Gets the unit's stun level.
 	int getStunlevel() const;
+	/// Knocks the unit out instantly.
+	void knockOut(BattlescapeGame *battle);
 	/// Start falling sequence.
 	void startFalling();
 	/// Increment the falling sequence.
@@ -208,6 +213,7 @@ public:
 	bool isOut() const;
 	/// Get the number of time units a certain action takes.
 	int getActionTUs(BattleActionType actionType, BattleItem *item);
+	int getActionTUs(BattleActionType actionType, RuleItem *item);
 	/// Spend time units if it can.
 	bool spendTimeUnits(int tu);
 	/// Spend energy if it can.
@@ -227,9 +233,9 @@ public:
 	/// Clear visible tiles.
 	void clearVisibleTiles();
 	/// Calculate firing accuracy.
-	double getFiringAccuracy(BattleActionType actionType, BattleItem *item);
+	int getFiringAccuracy(BattleActionType actionType, BattleItem *item);
 	/// Calculate accuracy modifier.
-	double getAccuracyModifier();
+	int getAccuracyModifier(BattleItem *item = 0);
 	/// Calculate throwing accuracy.
 	double getThrowingAccuracy();
 	/// Set armor value.
@@ -292,14 +298,18 @@ public:
 	void addFiringExp();
 	/// Adds one to the throwing exp counter.
 	void addThrowingExp();
-	/// Adds one to the psi exp counter.
-	void addPsiExp();
+	/// Adds one to the psi skill exp counter.
+	void addPsiSkillExp();
+	/// Adds one to the psi strength exp counter.
+	void addPsiStrengthExp();
 	/// Adds one to the melee exp counter.
 	void addMeleeExp();
+	/// Updates the stats of a Geoscape soldier.
+	void updateGeoscapeStats(Soldier *soldier);
 	/// Check if unit eligible for squaddie promotion.
 	bool postMissionProcedures(SavedGame *geoscape);
 	/// Get the sprite index for the minimap
-	int getMiniMapSpriteIndex () const;
+	int getMiniMapSpriteIndex() const;
 	/// Set the turret type. -1 is no turret.
 	void setTurretType(int turretType);
 	/// Get the turret type. -1 is no turret.
@@ -307,9 +317,9 @@ public:
 	/// Get fatal wound amount of a body part
 	int getFatalWound(int part) const;
 	/// Heal one fatal wound
-	void heal(int part, int healAmount, int healthAmount);
+	void heal(int part, int woundAmount, int healthAmount);
 	/// Give pain killers to this unit
-	void painKillers ();
+	void painKillers();
 	/// Give stimulant to this unit
 	void stimulant (int energy, int stun);
 	/// Get motion points for the motion scanner.
@@ -319,7 +329,7 @@ public:
 	/// Gets the unit's name.
 	std::wstring getName(Language *lang, bool debugAppendId = false) const;
 	/// Gets the unit's stats.
-	UnitStats *getStats();
+	UnitStats *getBaseStats();
 	/// Get the unit's stand height.
 	int getStandHeight() const;
 	/// Get the unit's kneel height.
@@ -342,8 +352,10 @@ public:
 	int getAggression() const;
 	/// Get the units's special ability.
 	int getSpecialAbility() const;
-	/// Set the units's special ability.
-	void setSpecialAbility(SpecialAbility specab);
+	/// Set the units's respawn flag.
+	void setRespawn(bool respawn);
+	/// Get the units's respawn flag.
+	bool getRespawn();
 	/// Get the units's rank string.
 	std::string getRankString() const;
 	/// Get the geoscape-soldier object.
@@ -360,12 +372,10 @@ public:
 	void convertToFaction(UnitFaction f);
 	/// Set health to 0 and set status dead
 	void instaKill();
-	/// Gets the unit's zombie unit.
-	std::string getZombieUnit() const;
 	/// Gets the unit's spawn unit.
 	std::string getSpawnUnit() const;
 	/// Sets the unit's spawn unit.
-	void setSpawnUnit(std::string spawnUnit);
+	void setSpawnUnit(const std::string &spawnUnit);
 	/// Gets the unit's aggro sound.
 	int getAggroSound() const;
 	/// Sets the unit's energy level.
@@ -383,21 +393,19 @@ public:
 	/// Get the carried weight in strength units.
 	int getCarriedWeight(BattleItem *draggingItem = 0) const;
 	/// Set how many turns this unit will be exposed for.
-	void setTurnsExposed (int turns);
+	void setTurnsSinceSpotted (int turns);
 	/// Set how many turns this unit will be exposed for.
-	int getTurnsExposed () const;
+	int getTurnsSinceSpotted() const;
 	/// Get this unit's original faction
 	UnitFaction getOriginalFaction() const;
 	/// call this after the default copy constructor deletes the cache?
 	void invalidateCache();
-	
+
 	Unit *getUnitRules() const { return _unitRules; }
 
-	/// scratch value for AI's left hand to tell its right hand what's up...
-	bool _hidingForTurn; // don't zone out and start patrolling again
 	Position lastCover;
 	/// get the vector of units we've seen this turn.
-	std::vector<BattleUnit *> getUnitsSpottedThisTurn();
+	std::vector<BattleUnit *> &getUnitsSpottedThisTurn();
 	/// set the rank integer
 	void setRankInt(int rank);
 	/// get the rank integer
@@ -413,7 +421,26 @@ public:
 	/// switch the state of the fire damage tracker.
 	void toggleFireDamage();
 	void setCoverReserve(int reserve);
-	int getCoverReserve();
+	int getCoverReserve() const;
+	/// Is this unit selectable?
+	bool isSelectable(UnitFaction faction, bool checkReselect, bool checkInventory) const;
+	/// Does this unit have an inventory?
+	bool hasInventory() const;
+	/// Is this unit breathing and if so what frame?
+	int getBreathFrame() const;
+	/// Start breathing and/or update the breathing frame.
+	void breathe();
+	/// Set the flag for "floor above me" meaning stop rendering bubbles.
+	void setFloorAbove(bool floor);
+	/// Get the flag for "floor above me".
+	bool getFloorAbove();
+	/// Get the name of any melee weapon we may be carrying, or a built in one.
+	std::string getMeleeWeapon();
+	/// Use this function to check the unit's movement type.
+	MovementType getMovementType() const;
+	bool isHiding() {return _hidingForTurn; };
+	void setHiding(bool hiding) { _hidingForTurn = hiding; };
+
 };
 
 }

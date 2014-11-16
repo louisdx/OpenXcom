@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -43,15 +43,17 @@ public:
 	/// Loads the alien base from YAML.
 	void load(const YAML::Node& node);
 	/// Saves the alien base to YAML.
-	void save(YAML::Emitter& out) const;
+	YAML::Node save() const;
 	/// Saves the alien base's ID to YAML.
-	void saveId(YAML::Emitter& out) const;
+	YAML::Node saveId() const;
 	/// Gets the alien base's ID.
 	int getId() const;
 	/// Sets the alien base's ID.
 	void setId(int id);
 	/// Gets the alien base's name.
 	std::wstring getName(Language *lang) const;
+	/// Gets the alien base's marker.
+	int getMarker() const;
 	/// Gets the alien base's amount of active hours..
 	std::string getAlienRace() const;
 	/// Sets the alien base's alien race.

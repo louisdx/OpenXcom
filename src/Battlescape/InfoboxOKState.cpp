@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -18,14 +18,15 @@
  */
 #include "InfoboxOKState.h"
 #include "../Engine/Game.h"
-#include "../Resource/ResourcePack.h"
 #include "../Engine/Language.h"
 #include "../Engine/Palette.h"
 #include "../Interface/TextButton.h"
-#include "../Interface/Window.h"
+#include "../Interface/Frame.h"
 #include "../Interface/Text.h"
 #include "../Interface/Cursor.h"
 #include "../Engine/Options.h"
+#include "../Savegame/SavedGame.h"
+#include "../Savegame/SavedBattleGame.h"
 
 namespace OpenXcom
 {
@@ -35,33 +36,34 @@ namespace OpenXcom
  * @param game Pointer to the core game.
  * @param msg Message string.
  */
-InfoboxOKState::InfoboxOKState(Game *game, const std::wstring &msg) : State(game)
+InfoboxOKState::InfoboxOKState(const std::wstring &msg)
 {
 	_screen = false;
 
 	// Create objects
-	_window = new Window(this, 261, 89, 30, 48);
+	_frame = new Frame(261, 89, 30, 48);
 	_btnOk = new TextButton(120, 18, 100, 112);
 	_txtTitle = new Text(255, 61, 33, 51);
-	
-	add(_window);
-	add(_btnOk);
-	add(_txtTitle);
+
+	// Set palette
+	_game->getSavedGame()->getSavedBattle()->setPaletteByDepth(this);
+
+	add(_frame, "infoBoxOK", "battlescape");
+	add(_btnOk, "infoBoxOK", "battlescape");
+	add(_txtTitle, "infoBoxOK", "battlescape");
 
 	centerAllSurfaces();
 
 	// Set up objects
-	_window->setColor(Palette::blockOffset(1)-1);
-	_window->setHighContrast(true);
+	_frame->setThickness(3);
+	_frame->setHighContrast(true);
 
-	_btnOk->setColor(Palette::blockOffset(1)-1);
-	_btnOk->setText(_game->getLanguage()->getString("STR_OK"));
+	_btnOk->setText(tr("STR_OK"));
 	_btnOk->onMouseClick((ActionHandler)&InfoboxOKState::btnOkClick);
-	_btnOk->onKeyboardPress((ActionHandler)&InfoboxOKState::btnOkClick, (SDLKey)Options::getInt("keyOk"));
-	_btnOk->onKeyboardPress((ActionHandler)&InfoboxOKState::btnOkClick, (SDLKey)Options::getInt("keyCancel"));
+	_btnOk->onKeyboardPress((ActionHandler)&InfoboxOKState::btnOkClick, Options::keyOk);
+	_btnOk->onKeyboardPress((ActionHandler)&InfoboxOKState::btnOkClick, Options::keyCancel);
 	_btnOk->setHighContrast(true);
 
-	_txtTitle->setColor(Palette::blockOffset(1)-1);
 	_txtTitle->setBig();
 	_txtTitle->setAlign(ALIGN_CENTER);
 	_txtTitle->setVerticalAlign(ALIGN_MIDDLE);

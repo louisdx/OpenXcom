@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -32,6 +32,7 @@ class WarningMessage;
 class BattleItem;
 class BattleUnit;
 class NumberText;
+class Timer;
 
 /**
  * Interactive view of an inventory.
@@ -45,20 +46,21 @@ private:
 	WarningMessage *_warning;
 	BattleUnit *_selUnit;
 	BattleItem *_selItem;
-	bool _tu;
-	int _groundOffset;
+	bool _tu, _base;
+	BattleItem *_mouseOverItem;
+	int _groundOffset, _animFrame;
 	std::map<int, std::map<int, int> > _stackLevel;
+	std::vector<std::pair<int, int> > _grenadeIndicators;
 	NumberText *_stackNumber;
-
-	/// Move item to specified slot.
+	Timer *_animTimer;
+	int _depth;
+	/// Moves an item to a specified slot.
 	void moveItem(BattleItem *item, RuleInventory *slot, int x, int y);
-	/// Check for item overlap.
-	bool overlapItems(BattleItem *item, RuleInventory *slot, int x, int y) const;
 	/// Gets the slot in the specified position.
 	RuleInventory *getSlotInPosition(int *x, int *y) const;
 public:
 	/// Creates a new inventory view at the specified position and size.
-	Inventory(Game *game, int width, int height, int x = 0, int y = 0);
+	Inventory(Game *game, int width, int height, int x = 0, int y = 0, bool base = false);
 	/// Cleans up the inventory.
 	~Inventory();
 	/// Sets the inventory's palette.
@@ -77,7 +79,11 @@ public:
 	BattleItem *getSelectedItem() const;
 	/// Sets the currently selected item.
 	void setSelectedItem(BattleItem *item);
-	/// Handle timers.
+	/// Gets the mouse over item.
+	BattleItem *getMouseOverItem() const;
+	/// Sets the mouse over item.
+	void setMouseOverItem(BattleItem *item);
+	/// Handles timers.
 	void think();
 	/// Blits the inventory onto another surface.
 	void blit(Surface *surface);
@@ -85,12 +91,20 @@ public:
 	void mouseOver(Action *action, State *state);
 	/// Special handling for mouse clicks.
 	void mouseClick(Action *action, State *state);
-	/// Unloads the selected weapon
+	/// Unloads the selected weapon.
 	bool unload();
 	/// Arranges items on the ground.
 	void arrangeGround(bool alterOffset = true);
+	/// Attempts to place an item in an inventory slot.
 	bool fitItem(RuleInventory *newSlot, BattleItem *item, std::string &warning);
+	/// Checks if two items can be stacked on one another.
 	bool canBeStacked(BattleItem *itemA, BattleItem *itemB);
+	/// Checks for item overlap.
+	static bool overlapItems(BattleUnit *unit, BattleItem *item, RuleInventory *slot, int x = 0, int y = 0);
+	/// Shows a warning message.
+	void showWarning(const std::wstring &msg);
+	/// Show priming warnings on grenades.
+	void drawPrimers();
 };
 
 }
